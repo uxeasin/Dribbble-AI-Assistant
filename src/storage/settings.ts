@@ -2,16 +2,19 @@
 // profile). The API key lives in chrome.storage.local only: it is never synced,
 // never exposed to content scripts, and never written anywhere else.
 
+import { getProviderDescriptor } from '../ai/providers';
 import { TAG_COUNT_OPTIONS, type TagCount, type Tone, type UserSettings } from '../types';
 import { normalizeTags } from '../utils/tags';
 
 const SETTINGS_KEY = 'settings';
 const API_KEY_PREFIX = 'apiKey:';
 
+const defaultProvider = getProviderDescriptor(import.meta.env.VITE_AI_PROVIDER || 'openai');
+
 export const DEFAULT_SETTINGS: Required<UserSettings> = {
-  aiProvider: import.meta.env.VITE_AI_PROVIDER || 'openai',
-  model: import.meta.env.VITE_AI_MODEL || 'gpt-4o-mini',
-  baseUrl: import.meta.env.VITE_AI_BASE_URL || 'https://api.openai.com/v1',
+  aiProvider: defaultProvider.id,
+  model: import.meta.env.VITE_AI_MODEL || defaultProvider.defaultModel,
+  baseUrl: import.meta.env.VITE_AI_BASE_URL || defaultProvider.defaultBaseUrl,
   defaultTags: [],
   tone: 'professional',
   tagCount: 8,
@@ -25,7 +28,7 @@ export function sanitizeSettings(raw: unknown): Required<UserSettings> {
   const str = (v: unknown, fallback: string) => (typeof v === 'string' && v.trim() ? v.trim() : fallback);
 
   return {
-    aiProvider: str(value.aiProvider, DEFAULT_SETTINGS.aiProvider),
+    aiProvider: getProviderDescriptor(str(value.aiProvider, DEFAULT_SETTINGS.aiProvider)).id,
     model: str(value.model, DEFAULT_SETTINGS.model),
     baseUrl: str(value.baseUrl, DEFAULT_SETTINGS.baseUrl).replace(/\/+$/, ''),
     defaultTags: Array.isArray(value.defaultTags)
@@ -56,8 +59,12 @@ export async function getApiKey(providerId: string): Promise<string | undefined>
   if (typeof value === 'string' && value) return value;
 
   // Development convenience only; production builds never read this variable.
-  if (import.meta.env.MODE === 'development' && providerId === 'openai') {
-    return import.meta.env.VITE_DEV_OPENAI_API_KEY || undefined;
+  if (import.meta.env.MODE === 'development') {
+    const devKeys: Record<string, string | undefined> = {
+      openai: import.meta.env.VITE_DEV_OPENAI_API_KEY,
+      gemini: import.meta.env.VITE_DEV_GEMINI_API_KEY,
+    };
+    return devKeys[providerId] || undefined;
   }
   return undefined;
 }

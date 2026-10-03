@@ -26,7 +26,7 @@ npm run dev
 
 This builds into `dist/` in watch mode. After you change the background worker or the content script, reload the extension from `chrome://extensions`. After a popup change, just reopen the popup.
 
-In development builds (only), `VITE_DEV_OPENAI_API_KEY` from `.env.local` is used as a fallback API key, so you don't have to re-enter it after every reload. See `.env.example`.
+In development builds (only), `VITE_DEV_OPENAI_API_KEY` / `VITE_DEV_GEMINI_API_KEY` from `.env.local` are used as fallback API keys, so you don't have to re-enter it after every reload. See `.env.example`.
 
 ## 3. Building
 
@@ -46,13 +46,20 @@ npm run test       # unit tests (Vitest + jsdom)
 
 ## 5. Configuring AI
 
-Open the popup, click the gear icon, and enter your API key.
+Open the popup, click the gear icon, choose a provider, and enter your API key.
+
+| Provider | Get a key | Default model |
+| --- | --- | --- |
+| OpenAI | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | `gpt-4o-mini` |
+| Google Gemini | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) | `gemini-2.5-flash` |
+
+Switching provider resets the model and base URL to that provider's defaults. Each provider's key is stored separately, so you can switch back and forth without re-entering them.
 
 | Setting | Notes |
 | --- | --- |
-| Provider | OpenAI, or any OpenAI-compatible API (set **Advanced → API base URL**). |
+| Provider | OpenAI (or any OpenAI-compatible API via **Advanced → API base URL**), or Google Gemini. |
 | API key | Stored in `chrome.storage.local` on this device only. It is never synced, never readable by the content script, and never committed or bundled. |
-| Model | Must accept image input. Default: `gpt-4o-mini` (override at build time with `VITE_AI_MODEL`). |
+| Model | Must accept image input. Change it under **Advanced**; build-time default via `VITE_AI_MODEL`. |
 | Tone | Professional, Minimal or Creative. |
 | Tag count | 5, 8, 10 or 12. |
 | Always include tags | Tags added to every shot, such as your studio name. |
@@ -61,7 +68,7 @@ Build-time defaults live in `.env.example`. A custom API host asks for your perm
 
 ### Adding another AI provider
 
-1. Implement the `AIProvider` interface in `src/ai/ai-provider.ts` (see `openai-provider.ts`).
+1. For a JSON-capable chat API, extend `JsonPromptProvider` (`src/ai/json-provider.ts`) and implement only `complete()`, the HTTP call. See `openai-provider.ts` and `gemini-provider.ts`. Prompts, validation, retries and error mapping are shared. Otherwise implement the `AIProvider` interface in `src/ai/ai-provider.ts` directly.
 2. Add its descriptor to `PROVIDERS` in `src/ai/providers.ts`.
 3. Add its API host to `host_permissions` in `manifest.json`.
 
@@ -96,7 +103,7 @@ The extension does **not**:
 - ask for your Dribbble password
 - auto-publish anything
 
-Permissions requested: `storage`, `scripting`, and host access to `dribbble.com` and `api.openai.com`.
+Permissions requested: `storage`, `scripting`, and host access to `dribbble.com`, `api.openai.com` and `generativelanguage.googleapis.com` (Gemini).
 
 ## 8. Known Dribbble limitations
 
@@ -143,7 +150,7 @@ Popup (React) ──Port "workflow"──▶ Background service worker ──tab
 - **`src/background/`** owns the workflow state machine (`idle → selected → preparing → review → uploading → ready`), persists it in session storage, runs the AI calls (so they survive the popup closing), and opens and drives the Dribbble tab.
 - **`src/popup/`** is a view of the background state, plus the settings screen. Edits are kept in a local draft that merges safely with AI regenerations.
 - **`src/content/`** is injected only into the upload tab. Its whole surface is `PING`, `PROBE_PAGE`, `UPLOAD_IMAGE` and `FILL_SHOT_DETAILS`. **There is no publish command.**
-- **`src/ai/`** contains the provider interface, the OpenAI implementation, prompts, and schema validation of AI output. Malformed JSON, missing fields and oversized tag lists are handled, with one automatic retry.
+- **`src/ai/`** contains the provider interface, the OpenAI and Gemini implementations (sharing `json-provider.ts`), prompts, and schema validation of AI output. Malformed JSON, missing fields and oversized tag lists are handled, with one automatic retry.
 - **`src/image/`** holds local-only validation and processing.
 - **`src/messaging/messages.ts`** holds the typed message contracts.
 
@@ -167,7 +174,7 @@ The code uses standard WebExtension APIs through `chrome.*`. To add Firefox or E
 
 ```text
 src/
-  ai/          provider interface, OpenAI provider, prompts, schema validation, generator
+  ai/          provider interface, OpenAI + Gemini providers, prompts, schema validation, generator
   background/  service worker, workflow state machine, tab + image stores
   content/     content script, controller, publish guard, on-page status banner
   dribbble/    selectors, navigation, upload, form, DOM helpers

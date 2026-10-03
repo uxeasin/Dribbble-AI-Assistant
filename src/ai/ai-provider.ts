@@ -42,6 +42,10 @@ export interface ProviderDescriptor {
   label: string;
   /** Where users obtain an API key; shown in Settings. */
   keyUrl: string;
+  /** Hint for the API key field, e.g. "sk-…". */
+  keyPlaceholder: string;
   defaultBaseUrl: string;
+  /** Vision-capable model used when the provider is selected. */
+  defaultModel: string;
   create(config: ProviderConfig): AIProvider;
 }

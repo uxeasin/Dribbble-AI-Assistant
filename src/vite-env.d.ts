@@ -6,6 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_AI_BASE_URL?: string;
   /** Development builds only — see .env.example. */
   readonly VITE_DEV_OPENAI_API_KEY?: string;
+  readonly VITE_DEV_GEMINI_API_KEY?: string;
 }
 
 interface ImportMeta {

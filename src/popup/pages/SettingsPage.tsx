@@ -84,7 +84,7 @@ export function SettingsPage({ api }: { api: SettingsApi }) {
             value={form.aiProvider}
             onChange={(e) => {
               const next = getProviderDescriptor(e.target.value);
-              patch({ aiProvider: next.id, baseUrl: next.defaultBaseUrl });
+              patch({ aiProvider: next.id, baseUrl: next.defaultBaseUrl, model: next.defaultModel });
             }}
           >
             {PROVIDERS.map((p) => (
@@ -113,7 +113,7 @@ export function SettingsPage({ api }: { api: SettingsApi }) {
               type={showKey ? 'text' : 'password'}
               value={apiKey}
               onChange={(e) => setApiKeyInput(e.target.value)}
-              placeholder={keyConfigured ? '•••••••• (leave blank to keep)' : 'sk-…'}
+              placeholder={keyConfigured ? '•••••••• (leave blank to keep)' : descriptor.keyPlaceholder}
               autoComplete="off"
               spellCheck={false}
               aria-describedby="api-key-hint"
