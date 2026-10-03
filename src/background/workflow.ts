@@ -17,11 +17,10 @@ import { focusTab, injectContentScript, openUploadTab, request } from './dribbbl
 import { clearImage, getImage, putImage } from './image-store';
 import { INITIAL_STATE, createSteps, failActiveStep, setStep, type StateStore } from './state-store';
 
+// Generation is a single AI request (one call per shot keeps free-tier quotas usable).
 const PREPARE_STEPS = createSteps([
-  { id: 'analysis', label: 'Analyzing image', doneLabel: 'Image analyzed' },
-  { id: 'title', label: 'Generating title', doneLabel: 'Title generated' },
-  { id: 'description', label: 'Creating description', doneLabel: 'Description created' },
-  { id: 'tags', label: 'Generating tags', doneLabel: 'Tags generated' },
+  { id: 'prepare', label: 'Optimizing image', doneLabel: 'Image optimized' },
+  { id: 'generate', label: 'Analyzing design & writing content', doneLabel: 'Title, description & tags ready' },
 ]);
 
 const UPLOAD_STEPS = createSteps([

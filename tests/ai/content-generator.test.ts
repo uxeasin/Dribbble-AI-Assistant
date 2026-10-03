@@ -11,6 +11,7 @@ const CONTENT: ShotContent = { title: 'Banking App', description: 'A banking app
 function fakeProvider(): AIProvider {
   return {
     id: 'fake',
+    prepareShot: vi.fn(async () => ({ analysis: ANALYSIS, content: CONTENT })),
     analyzeDesign: vi.fn(async () => ANALYSIS),
     generateShotContent: vi.fn(async (_analysis, _options, hooks) => {
       hooks?.onField?.('title', CONTENT.title);
@@ -23,10 +24,11 @@ function fakeProvider(): AIProvider {
 }
 
 describe('generateShot', () => {
-  it('reports steps in pipeline order and merges default tags first', async () => {
+  it('uses a single AI request and merges default tags first', async () => {
+    const provider = fakeProvider();
     const events: string[] = [];
     const result = await generateShot(
-      fakeProvider(),
+      provider,
       new Blob(['x']),
       { tone: 'minimal', tagCount: 5, defaultTags: ['studio-x'] },
       {
@@ -34,16 +36,10 @@ describe('generateShot', () => {
         onStepDone: (s) => events.push(`done:${s}`),
       },
     );
-    expect(events).toEqual([
-      'start:analysis',
-      'done:analysis',
-      'start:title',
-      'done:title',
-      'start:description',
-      'done:description',
-      'start:tags',
-      'done:tags',
-    ]);
+    expect(events).toEqual(['start:prepare', 'done:prepare', 'start:generate', 'done:generate']);
+    expect(provider.prepareShot).toHaveBeenCalledTimes(1);
+    expect(provider.analyzeDesign).not.toHaveBeenCalled();
+    expect(provider.generateShotContent).not.toHaveBeenCalled();
     expect(result.content.tags).toEqual(['studio-x', 'ui', 'fintech', 'mobile-design']);
   });
 

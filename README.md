@@ -78,7 +78,7 @@ Nothing else in the app depends on a specific provider.
 
 1. Log in to Dribbble in your browser as usual.
 2. Click the extension, then **Select Design** (or drag an image in). PNG, JPG or WebP, up to 10 MB.
-3. Click **Prepare Shot**. The progress list shows each real step: analyzing the image, then generating the title, description and tags.
+3. Click **Prepare Shot**. The image is optimized locally, then **one** AI request analyzes it and writes the title, description and tags together. Each ↻ regenerate costs one more request. This matters on free tiers: Gemini's free tier, for example, allows about 5 requests a minute and 20 a day. If a limit is hit, the extension says so and does not retry automatically, so no extra quota is used.
 4. Edit anything you like. Each field has a ↻ button to regenerate just that field. Tags can be added with Enter or a comma, and removed with × or Backspace.
 5. Click **Upload to Dribbble**. The extension opens `dribbble.com/uploads/new`, places your image in Dribbble's own uploader, and fills in the title and description. A small banner on the page shows what it is doing.
 6. Dribbble asks for tags in its final step ("Continue" → *Final touches*). When **you** click Continue, the extension notices the tag field and fills in your tags.

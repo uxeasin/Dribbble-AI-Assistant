@@ -1,12 +1,13 @@
-// Orchestrates analysis → title → description → tags and applies the user's
-// preferences (default tags, tag count) on top of the provider output.
+// Orchestrates shot generation and applies the user's preferences (default
+// tags, tag count) on top of the provider output.
 
 import type { DesignAnalysis, GenerationOptions, ShotContent, ShotField } from '../types';
 import { DRIBBBLE_MAX_TAGS, normalizeTags } from '../utils/tags';
-import type { AIProvider } from './ai-provider';
-import { analyzeImage } from './image-analyzer';
+import type { AIProvider, GeneratedShot } from './ai-provider';
+import { prepareImageForAI } from './image-analyzer';
 
-export type GenerationStep = 'analysis' | ShotField;
+/** "prepare" is local (resize/encode); "generate" is the single AI request. */
+export type GenerationStep = 'prepare' | 'generate';
 
 export interface GenerateCallbacks {
   signal?: AbortSignal;
@@ -14,17 +15,12 @@ export interface GenerateCallbacks {
   onStepDone?: (step: GenerationStep) => void;
 }
 
-export interface GeneratedShot {
-  analysis: DesignAnalysis;
-  content: ShotContent;
-}
+export type { GeneratedShot };
 
 /** Designer's always-on tags come first; AI tags fill the rest up to Dribbble's limit. */
 export function mergeDefaultTags(aiTags: readonly string[], defaultTags: readonly string[]): string[] {
   return normalizeTags([...defaultTags, ...aiTags], DRIBBBLE_MAX_TAGS);
 }
-
-const NEXT_STEP: Record<ShotField, ShotField | null> = { title: 'description', description: 'tags', tags: null };
 
 export async function generateShot(
   provider: AIProvider,
@@ -32,19 +28,13 @@ export async function generateShot(
   options: GenerationOptions,
   { signal, onStepStart, onStepDone }: GenerateCallbacks = {},
 ): Promise<GeneratedShot> {
-  onStepStart?.('analysis');
-  const analysis = await analyzeImage(provider, image, signal);
-  onStepDone?.('analysis');
+  onStepStart?.('prepare');
+  const aiImage = await prepareImageForAI(image);
+  onStepDone?.('prepare');
 
-  onStepStart?.('title');
-  const content = await provider.generateShotContent(analysis, options, {
-    signal,
-    onField: (field) => {
-      onStepDone?.(field);
-      const next = NEXT_STEP[field];
-      if (next) onStepStart?.(next);
-    },
-  });
+  onStepStart?.('generate');
+  const { analysis, content } = await provider.prepareShot(aiImage, options, signal);
+  onStepDone?.('generate');
 
   return { analysis, content: { ...content, tags: mergeDefaultTags(content.tags, options.defaultTags) } };
 }

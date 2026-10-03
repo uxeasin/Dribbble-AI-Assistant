@@ -109,6 +109,17 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+/** Validates the single-request answer: `{ analysis, title, description, tags }`. */
+export function validateGeneratedShot(value: unknown, maxTags: number): { analysis: DesignAnalysis; content: ShotContent } {
+  const obj = (typeof value === 'string' ? parseJsonObject(value) : value) as JsonObject | null;
+  if (typeof obj !== 'object' || obj === null) throw invalid('not an object');
+  const content = validateShotContent(obj, maxTags);
+  // The analysis is only context for later regenerations; derive one from the content if it's missing.
+  const rawAnalysis = typeof obj.analysis === 'object' && obj.analysis !== null ? obj.analysis : {};
+  const analysis = validateDesignAnalysis({ subject: content.title, keywords: content.tags, ...rawAnalysis });
+  return { analysis, content };
+}
+
 export function validateDesignAnalysis(value: unknown): DesignAnalysis {
   const obj = (typeof value === 'string' ? parseJsonObject(value) : value) as JsonObject | null;
   if (typeof obj !== 'object' || obj === null) throw invalid('analysis is not an object');

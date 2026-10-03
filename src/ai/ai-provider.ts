@@ -12,6 +12,13 @@ export interface GenerationHooks {
 export interface AIProvider {
   readonly id: string;
 
+  /**
+   * Analyses the image and writes title, description and tags in a single
+   * request — the default path, since it costs one API call per shot.
+   * `image` should already be downscaled for the provider.
+   */
+  prepareShot(image: Blob, options: GenerationOptions, signal?: AbortSignal): Promise<GeneratedShot>;
+
   /** Describes the design. `image` should already be downscaled for the provider. */
   analyzeDesign(image: Blob, signal?: AbortSignal): Promise<DesignAnalysis>;
 
@@ -29,6 +36,11 @@ export interface AIProvider {
     options: GenerationOptions,
     signal?: AbortSignal,
   ): Promise<ShotContent[F]>;
+}
+
+export interface GeneratedShot {
+  analysis: DesignAnalysis;
+  content: ShotContent;
 }
 
 export interface ProviderConfig {

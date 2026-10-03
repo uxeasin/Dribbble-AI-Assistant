@@ -3,6 +3,7 @@ import {
   parseJsonObject,
   TITLE_MAX_LENGTH,
   validateDesignAnalysis,
+  validateGeneratedShot,
   validateShotContent,
   validateTags,
   validateTitle,
@@ -123,5 +124,23 @@ describe('validateDesignAnalysis', () => {
       subject: 'fitness, mobile app',
     });
     expectAiFailure(() => validateDesignAnalysis({ colors: ['#fff'] }));
+  });
+});
+
+describe('validateGeneratedShot', () => {
+  it('validates the single-request answer', () => {
+    const shot = validateGeneratedShot({ analysis: { designType: 'dashboard', subject: 'Analytics' }, ...VALID }, 12);
+    expect(shot.content).toEqual(VALID);
+    expect(shot.analysis.designType).toBe('dashboard');
+  });
+
+  it('derives an analysis from the content when it is missing', () => {
+    const shot = validateGeneratedShot(VALID, 12);
+    expect(shot.analysis.subject).toBe(VALID.title);
+    expect(shot.analysis.keywords).toEqual(VALID.tags);
+  });
+
+  it('still requires the content fields', () => {
+    expectAiFailure(() => validateGeneratedShot({ analysis: { designType: 'x', subject: 'y' } }, 12));
   });
 });

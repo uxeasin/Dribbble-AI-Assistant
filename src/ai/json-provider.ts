@@ -6,9 +6,16 @@
 import type { DesignAnalysis, GenerationOptions, ShotContent, ShotField } from '../types';
 import { blobToDataUrl } from '../image/encoding';
 import { AppError } from '../utils/errors';
-import type { AIProvider, GenerationHooks, ProviderConfig } from './ai-provider';
-import { ANALYSIS_PROMPT, SYSTEM_PROMPT, buildFieldPrompt } from './prompt-builder';
-import { parseJsonObject, validateDescription, validateDesignAnalysis, validateTags, validateTitle } from './schema';
+import type { AIProvider, GeneratedShot, GenerationHooks, ProviderConfig } from './ai-provider';
+import { ANALYSIS_PROMPT, SYSTEM_PROMPT, buildFieldPrompt, buildShotPrompt } from './prompt-builder';
+import {
+  parseJsonObject,
+  validateDescription,
+  validateDesignAnalysis,
+  validateGeneratedShot,
+  validateTags,
+  validateTitle,
+} from './schema';
 
 export interface PromptImage {
   mimeType: string;
@@ -37,11 +44,17 @@ export abstract class JsonPromptProvider implements AIProvider {
   /** Sends one request and returns the model's raw text output. */
   protected abstract complete(request: PromptRequest, signal?: AbortSignal): Promise<string>;
 
-  async analyzeDesign(image: Blob, signal?: AbortSignal): Promise<DesignAnalysis> {
-    const dataUrl = await blobToDataUrl(image);
-    const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  async prepareShot(image: Blob, options: GenerationOptions, signal?: AbortSignal): Promise<GeneratedShot> {
     return this.requestValidated(
-      { system: SYSTEM_PROMPT, text: ANALYSIS_PROMPT, image: { mimeType: image.type || 'image/jpeg', base64 } },
+      { system: SYSTEM_PROMPT, text: buildShotPrompt(options), image: await toPromptImage(image) },
+      (text) => validateGeneratedShot(text, options.tagCount),
+      signal,
+    );
+  }
+
+  async analyzeDesign(image: Blob, signal?: AbortSignal): Promise<DesignAnalysis> {
+    return this.requestValidated(
+      { system: SYSTEM_PROMPT, text: ANALYSIS_PROMPT, image: await toPromptImage(image) },
       validateDesignAnalysis,
       signal,
     );
@@ -146,7 +159,9 @@ export abstract class JsonPromptProvider implements AIProvider {
       const detail = `HTTP ${response.status}: ${extractErrorMessage(text)}`;
       if (this.isAuthError(response.status, text)) throw new AppError('AI_AUTH', detail);
       if (response.status === 404) throw new AppError('AI_MODEL_UNAVAILABLE', detail);
-      if (response.status === 429) throw new AppError('AI_RATE_LIMITED', detail, { retryable: true });
+      // Not retried automatically: on small quotas (e.g. 5 requests/minute) an
+      // immediate retry only burns more of the daily allowance.
+      if (response.status === 429) throw new AppError('AI_RATE_LIMITED', detail);
       throw new AppError('AI_FAILED', detail, { retryable: response.status >= 500 });
     }
     return (await response.json().catch(() => null)) as T | null;
@@ -155,6 +170,11 @@ export abstract class JsonPromptProvider implements AIProvider {
   protected isAuthError(status: number, _body: string): boolean {
     return status === 401 || status === 403;
   }
+}
+
+async function toPromptImage(image: Blob): Promise<PromptImage> {
+  const dataUrl = await blobToDataUrl(image);
+  return { mimeType: image.type || 'image/jpeg', base64: dataUrl.slice(dataUrl.indexOf(',') + 1) };
 }
 
 /** Pulls the human-readable message out of an API error body (OpenAI and Google formats). */

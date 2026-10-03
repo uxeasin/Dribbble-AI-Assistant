@@ -60,25 +60,53 @@ function currentContext(current: Partial<ShotContent>, exclude: ShotField): stri
   return `\nAlready chosen for this shot (stay consistent with it):\n${JSON.stringify(Object.fromEntries(entries), null, 2)}`;
 }
 
-const FIELD_INSTRUCTIONS: Record<ShotField, (options: GenerationOptions) => string> = {
-  title: () => `Write the shot TITLE.
+const FIELD_RULES: Record<ShotField, (options: GenerationOptions) => string> = {
+  title: () => `TITLE
 - 3 to 8 words, Title Case, descriptive and specific (e.g. "Modern SaaS Analytics Dashboard").
-- No quotes, no trailing punctuation, no emojis, no clickbait.
-Return: {"title": "..."}`,
+- No quotes, no trailing punctuation, no emojis, no clickbait.`,
 
-  description: () => `Write the shot DESCRIPTION.
+  description: () => `DESCRIPTION
 - 1 to 3 short paragraphs (separate paragraphs with a blank line), under 120 words total.
 - Explain the concept and the key UI/UX decisions that are visible (layout, hierarchy, components, colour, typography).
-- Do not invent features, data or results that cannot be seen. No marketing language, no hashtags, no calls to action.
-Return: {"description": "..."}`,
+- Do not invent features, data or results that cannot be seen. No marketing language, no hashtags, no calls to action.`,
 
-  tags: (options) => `Choose exactly ${options.tagCount} TAGS.
+  tags: (options) => `TAGS — exactly ${options.tagCount}
 - Lowercase, hyphenate multi-word tags (e.g. "web-design", "landing-page").
 - Highly relevant to this specific design; mix the discipline (ui, ux, product-design), the format (dashboard, mobile-design, landing-page) and the domain (fintech, saas, ecommerce).
 - Prefer common Dribbble tags such as: ${PREFERRED_TAGS.join(', ')} — but only when they truly apply.
-- No spammy, generic or unrelated tags, no duplicates, no "#".
-Return: {"tags": ["...", "..."]}`,
+- No spammy, generic or unrelated tags, no duplicates, no "#".`,
 };
+
+const FIELD_RETURN: Record<ShotField, string> = {
+  title: '{"title": "..."}',
+  description: '{"description": "..."}',
+  tags: '{"tags": ["...", "..."]}',
+};
+
+/**
+ * Everything in one request: analyse the image and write all three fields.
+ * Keeps usage at one call per shot, which matters on free API tiers.
+ */
+export function buildShotPrompt(options: GenerationOptions): string {
+  return `${ANALYSIS_PROMPT}
+
+Then, using that analysis, write the Dribbble shot content.
+Tone: ${TONE_GUIDE[options.tone]}
+
+${FIELD_RULES.title(options)}
+
+${FIELD_RULES.description(options)}
+
+${FIELD_RULES.tags(options)}
+
+Return one JSON object:
+{
+  "analysis": { ...the analysis keys above... },
+  "title": "...",
+  "description": "...",
+  "tags": ["...", "..."]
+}`;
+}
 
 export interface FieldPromptInput {
   field: ShotField;
@@ -94,7 +122,7 @@ export function buildFieldPrompt({ field, analysis, options, current = {}, previ
     analysisContext(analysis),
     currentContext(current, field),
     `\nTone: ${TONE_GUIDE[options.tone]}`,
-    `\n${FIELD_INSTRUCTIONS[field](options)}`,
+    `\nWrite the shot ${FIELD_RULES[field](options)}\nReturn: ${FIELD_RETURN[field]}`,
   ];
   if (previous !== undefined) {
     parts.push(

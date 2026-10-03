@@ -46,6 +46,25 @@ describe('GeminiProvider', () => {
     expect(body.contents[0].parts[1]).toEqual({ inline_data: { mime_type: 'image/jpeg', data: 'AQID' } });
   });
 
+  it('prepares a whole shot in one request', async () => {
+    const fetchMock = mockFetch(
+      reply(
+        JSON.stringify({
+          analysis: ANALYSIS,
+          title: 'Personal Finance Tracker App',
+          description: 'A calm finance tracking concept.',
+          tags: ['fintech', 'mobile-design', 'ui', 'ux'],
+        }),
+      ),
+    );
+    const shot = await new GeminiProvider(CONFIG, fetchMock).prepareShot(new Blob([new Uint8Array([1])], { type: 'image/jpeg' }), OPTIONS);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(shot.analysis.designType).toBe('mobile app');
+    expect(shot.content.title).toBe('Personal Finance Tracker App');
+    const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string);
+    expect(body.contents[0].parts).toHaveLength(2); // prompt + image
+  });
+
   it('generates all fields in order', async () => {
     const fetchMock = mockFetch(
       reply('{"title":"Personal Finance Tracker App"}'),
@@ -100,11 +119,11 @@ describe('GeminiProvider', () => {
     await expect(promise).rejects.toMatchObject({ code: 'AI_MODEL_UNAVAILABLE', detail: expect.stringContaining('gemini-x') });
   });
 
-  it('reports quota exhaustion (429) after one retry', async () => {
+  it('reports quota exhaustion (429) without retrying, to save quota', async () => {
     const quota = () => new Response('{"error":{"code":429,"message":"Quota exceeded","status":"RESOURCE_EXHAUSTED"}}', { status: 429 });
     const fetchMock = mockFetch(quota(), quota());
     await expect(new GeminiProvider(CONFIG, fetchMock).analyzeDesign(new Blob(['x']))).rejects.toMatchObject({ code: 'AI_RATE_LIMITED' });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('accepts an array-wrapped JSON answer', async () => {
