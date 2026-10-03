@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GeminiProvider, geminiDescriptor } from '../../src/ai/gemini-provider';
+import { GeminiProvider, geminiDescriptor, pickGeminiModel } from '../../src/ai/gemini-provider';
 import { createProvider } from '../../src/ai/providers';
 import { DEFAULT_SETTINGS } from '../../src/storage/settings';
 import type { DesignAnalysis, GenerationOptions } from '../../src/types';
@@ -73,10 +73,31 @@ describe('GeminiProvider', () => {
     await expect(promise).rejects.toMatchObject({ code: 'AI_AUTH' });
   });
 
-  it('explains an unavailable model (404) with the API message', async () => {
-    const body = '{"error":{"code":404,"message":"models/gemini-x is not found for API version v1beta","status":"NOT_FOUND"}}';
-    const promise = new GeminiProvider({ ...CONFIG, model: 'gemini-x' }, mockFetch(new Response(body, { status: 404 }))).analyzeDesign(new Blob(['x']));
-    await expect(promise).rejects.toMatchObject({ code: 'AI_MODEL_UNAVAILABLE', detail: expect.stringContaining('is not found') });
+  it('switches to an available model when the configured one was retired (404)', async () => {
+    const notFound = new Response('{"error":{"code":404,"message":"models/gemini-2.5-flash is not found for API version v1beta","status":"NOT_FOUND"}}', {
+      status: 404,
+    });
+    const list = new Response(
+      JSON.stringify({
+        models: [
+          { name: 'models/gemini-3.0-flash', supportedGenerationMethods: ['generateContent', 'countTokens'] },
+          { name: 'models/text-embedding-004', supportedGenerationMethods: ['embedContent'] },
+        ],
+      }),
+    );
+    const fetchMock = mockFetch(notFound, list, reply('{"title":"Fitness Tracking App"}'));
+    const value = await new GeminiProvider(CONFIG, fetchMock).regenerateField('title', ANALYSIS, CURRENT, OPTIONS);
+
+    expect(value).toBe('Fitness Tracking App');
+    expect(String(fetchMock.mock.calls[1]![0])).toContain('/v1beta/models?pageSize=100');
+    expect(fetchMock.mock.calls[1]![1]!.method).toBe('GET');
+    expect(String(fetchMock.mock.calls[2]![0])).toContain('/models/gemini-3.0-flash:generateContent');
+  });
+
+  it('explains an unavailable model when no alternative exists', async () => {
+    const fetchMock = mockFetch(new Response('{"error":{"message":"not found"}}', { status: 404 }), new Response('{"models":[]}'));
+    const promise = new GeminiProvider({ ...CONFIG, model: 'gemini-x' }, fetchMock).analyzeDesign(new Blob(['x']));
+    await expect(promise).rejects.toMatchObject({ code: 'AI_MODEL_UNAVAILABLE', detail: expect.stringContaining('gemini-x') });
   });
 
   it('reports quota exhaustion (429) after one retry', async () => {
@@ -110,5 +131,26 @@ describe('GeminiProvider', () => {
   it('is selectable from settings', () => {
     const provider = createProvider({ ...DEFAULT_SETTINGS, aiProvider: 'gemini', baseUrl: geminiDescriptor.defaultBaseUrl }, 'AIza');
     expect(provider.id).toBe('gemini');
+  });
+});
+
+describe('pickGeminiModel', () => {
+  const m = (name: string, methods = ['generateContent']) => ({ name: `models/${name}`, supportedGenerationMethods: methods });
+
+  it('prefers the rolling flash alias', () => {
+    expect(pickGeminiModel([m('gemini-3.0-pro'), m('gemini-flash-latest'), m('gemini-3.0-flash')])).toBe('gemini-flash-latest');
+  });
+
+  it('otherwise picks the newest stable Flash model', () => {
+    expect(
+      pickGeminiModel([m('gemini-2.0-flash'), m('gemini-3.0-flash'), m('gemini-3.5-flash-preview-09'), m('gemini-3.0-flash-lite'), m('gemini-3.0-pro')]),
+    ).toBe('gemini-3.0-flash');
+  });
+
+  it('ignores models that cannot generate text from images', () => {
+    expect(
+      pickGeminiModel([m('gemini-embedding-001', ['embedContent']), m('gemini-3.0-flash-preview-tts'), m('gemini-3.0-flash-image'), m('gemini-2.5-pro')]),
+    ).toBe('gemini-2.5-pro');
+    expect(pickGeminiModel([])).toBeNull();
   });
 });

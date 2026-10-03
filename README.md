@@ -51,9 +51,9 @@ Open the popup, click the gear icon, choose a provider, and enter your API key.
 | Provider | Get a key | Default model |
 | --- | --- | --- |
 | OpenAI | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | `gpt-4o-mini` |
-| Google Gemini | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) | `gemini-2.5-flash` |
+| Google Gemini | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) | `gemini-flash-latest` |
 
-Switching provider resets the model and base URL to that provider's defaults. Each provider's key is stored separately, so you can switch back and forth without re-entering them.
+Switching provider resets the model and base URL to that provider's defaults. Google retires Gemini model names regularly. If the configured Gemini model returns *not found*, the extension asks the API which models your key can use and switches to the newest Flash model automatically. Each provider's key is stored separately, so you can switch back and forth without re-entering them.
 
 | Setting | Notes |
 | --- | --- |

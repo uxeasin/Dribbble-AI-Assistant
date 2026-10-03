@@ -108,17 +108,31 @@ export abstract class JsonPromptProvider implements AIProvider {
     throw lastError;
   }
 
-  /** POSTs JSON with a timeout, mapping network failures and HTTP errors to AppErrors. */
-  protected async postJson<T>(url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal): Promise<T | null> {
+  protected postJson<T>(url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal): Promise<T | null> {
+    return this.requestJson<T>('POST', url, headers, body, signal);
+  }
+
+  protected getJson<T>(url: string, headers: Record<string, string>, signal?: AbortSignal): Promise<T | null> {
+    return this.requestJson<T>('GET', url, headers, undefined, signal);
+  }
+
+  /** Sends a JSON request with a timeout, mapping network failures and HTTP errors to AppErrors. */
+  private async requestJson<T>(
+    method: 'GET' | 'POST',
+    url: string,
+    headers: Record<string, string>,
+    body: unknown,
+    signal?: AbortSignal,
+  ): Promise<T | null> {
     const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
     const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
 
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify(body),
+        method,
+        headers: body === undefined ? headers : { 'Content-Type': 'application/json', ...headers },
+        body: body === undefined ? undefined : JSON.stringify(body),
         signal: combined,
       });
     } catch (error) {
@@ -131,7 +145,7 @@ export abstract class JsonPromptProvider implements AIProvider {
       const text = await response.text().catch(() => '');
       const detail = `HTTP ${response.status}: ${extractErrorMessage(text)}`;
       if (this.isAuthError(response.status, text)) throw new AppError('AI_AUTH', detail);
-      if (response.status === 404) throw new AppError('AI_MODEL_UNAVAILABLE', `Model "${this.config.model}". ${detail}`);
+      if (response.status === 404) throw new AppError('AI_MODEL_UNAVAILABLE', detail);
       if (response.status === 429) throw new AppError('AI_RATE_LIMITED', detail, { retryable: true });
       throw new AppError('AI_FAILED', detail, { retryable: response.status >= 500 });
     }
