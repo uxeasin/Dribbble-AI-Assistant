@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { findFirst } from '../../src/dribbble/dom-utils';
 import { locateShotFields, locateTagsField } from '../../src/dribbble/form';
+import { findContinueButton } from '../../src/dribbble/steps';
 import { detectPageStatus, isLoginUrl, isUploadUrl } from '../../src/dribbble/navigation';
 import { DESCRIPTION_FIELD, FILE_INPUT, TAGS_FIELD, TITLE_FIELD } from '../../src/dribbble/selectors';
 import { installUploadPage, UPLOAD_PAGE_URL } from '../fixtures/dribbble-dom';
@@ -36,6 +37,25 @@ describe('Dribbble selectors', () => {
     (document.getElementById('final-touches') as HTMLElement).hidden = false;
     expect(findFirst(TAGS_FIELD)?.element.id).toBe('tags-input');
     expect(findFirst(TAGS_FIELD)?.locator).toMatch(/label/);
+  });
+
+  it('finds an unlabeled tag input from its "Tags (maximum 20)" caption', () => {
+    document.body.innerHTML = `
+      <div role="dialog">
+        <section><h3>Visibility</h3><input type="checkbox" /></section>
+        <section>
+          <div><span>Tags</span> <span>(maximum 20)</span></div>
+          <div class="tokenizer"><input type="text" id="tok" autocomplete="off" /></div>
+        </section>
+      </div>`;
+    expect(findFirst(TAGS_FIELD)?.element.id).toBe('tok');
+  });
+
+  it('finds the Continue button but never a publish button', () => {
+    showEditor();
+    expect(findContinueButton()?.id).toBe('continue');
+    document.body.innerHTML = '<button>Publish now</button><button>Save as draft</button>';
+    expect(findContinueButton()).toBeNull();
   });
 
   it('prefers accessible labels over placeholders', () => {

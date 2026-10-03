@@ -81,7 +81,7 @@ Nothing else in the app depends on a specific provider.
 3. Click **Prepare Shot**. The image is optimized locally, then **one** AI request analyzes it and writes the title, description and tags together. Each ↻ regenerate costs one more request. This matters on free tiers: Gemini's free tier, for example, allows about 5 requests a minute and 20 a day. If a limit is hit, the extension says so and does not retry automatically, so no extra quota is used.
 4. Edit anything you like. Each field has a ↻ button to regenerate just that field. Tags can be added with Enter or a comma, and removed with × or Backspace.
 5. Click **Upload to Dribbble**. The extension opens `dribbble.com/uploads/new`, places your image in Dribbble's own uploader, and fills in the title and description. A small banner on the page shows what it is doing.
-6. Dribbble asks for tags in its final step ("Continue" → *Final touches*). When **you** click Continue, the extension notices the tag field and fills in your tags.
+6. Dribbble asks for tags in its final step. The extension clicks **Continue**, which only opens the *Final touches* dialog, and fills in your tags there. It never touches **Publish now** or **Save as draft**. If it can't find a Continue button, it waits for you to click it and then adds the tags.
 7. Review everything and **publish manually**.
 
 You can close the popup at any time. Progress lives in the background worker and the popup picks up where you left off. If your OS closes the popup when the file picker opens, use the ⤢ button to open the assistant in a full tab.
@@ -108,7 +108,7 @@ Permissions requested: `storage`, `scripting`, and host access to `dribbble.com`
 ## 8. Known Dribbble limitations
 
 - **Unverified selectors.** Dribbble has no public upload API for regular accounts, so the extension drives the normal web UI. The selectors target the uploader as it looked when this was written. They are tested against a mock of that flow, not against the live site, which this project's build environment could not reach. Expect to adjust `src/dribbble/selectors.ts` after your first real run (see §9).
-- **Tags come in a later step.** Tags live in Dribbble's *Final touches* dialog, which only opens when you click Continue. The extension waits up to 20 minutes for that dialog, never clicks Continue itself, and fills the tags once the dialog appears.
+- **Tags come in a later step.** Tags live in Dribbble's *Final touches* dialog. The extension opens it by clicking Continue (an exact "Continue" button only). If that isn't possible, it waits up to 20 minutes for you to open the dialog. If the dialog opens but the tag field isn't recognised, it says so instead of guessing.
 - **Description editor.** The description is a rich-text editor. Text is inserted with a paste-style event so the editor keeps its own state. If that fails, the popup warns you to double-check the description.
 - **Login and security checks.** If you're logged out, or Dribbble shows a CAPTCHA or security check, automation stops and tells you to resolve it yourself. It never tries to bypass either.
 - **Upload limits.** Dribbble's own limits apply (10 MB per image; recommended 1600×1200 or larger).
@@ -159,9 +159,9 @@ Popup (React) ──Port "workflow"──▶ Background service worker ──tab
 Publishing is never automated, and this is enforced in four layers:
 
 1. **No API.** Neither the content script nor the message contracts have a publish or submit command.
-2. **No clicks.** The integration code never calls `.click()`, `.submit()` or `requestSubmit()`. Filling uses value setters, paste events and synthetic key presses, and browsers never turn untrusted key events into form submissions.
+2. **One click, and never Publish.** The only control the extension activates is the editor's **Continue** button, which opens the tag dialog. It is matched by exact text and refused if it looks like a publish or submit control (`src/dribbble/steps.ts`, the only file allowed to click). The code never calls `.submit()` or `requestSubmit()`. Filling uses value setters, paste events and synthetic key presses, and browsers never turn untrusted key events into form submissions.
 3. **Runtime guard.** While automation runs, `src/content/publish-guard.ts` cancels any form submission and any scripted click on a publish or submit control. This catches the case where the page's own handlers react to a simulated key press. The guard is removed afterwards, so your own clicks are never affected.
-4. **Tests.** `tests/dribbble/no-publish.test.ts` runs the full flow against a mock Dribbble page and asserts that the publish button is never activated, no form is submitted, and `click`, `submit` and `requestSubmit` are never called. It also scans the integration source for any such call or for a publish/submit function or message.
+4. **Tests.** `tests/dribbble/no-publish.test.ts` runs the full flow against a mock Dribbble page and asserts that the publish button is never activated, no form is submitted, `submit`/`requestSubmit` are never called, and the only `click` is on Continue. It also scans the integration source to make sure `steps.ts` is the only file that clicks, and that no publish/submit function or message exists.
 
 ## Browser support
 

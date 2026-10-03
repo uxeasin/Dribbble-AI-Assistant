@@ -70,15 +70,21 @@ export function installUploadPage(doc: Document = document, options: { tagsInlin
       .join('');
   });
 
-  // Tokenising tag input: Enter adds a chip and clears the input.
+  // Tokenising tag input like Dribbble's: a comma (or Enter) turns the text into a chip.
   const tagsInput = doc.getElementById('tags-input') as HTMLInputElement;
+  const addChip = (text: string) => {
+    const li = doc.createElement('li');
+    li.textContent = text;
+    doc.getElementById('tag-list')!.append(li);
+    tagsInput.value = '';
+  };
+  tagsInput.addEventListener('input', () => {
+    if (tagsInput.value.endsWith(',') && tagsInput.value.slice(0, -1).trim()) addChip(tagsInput.value.slice(0, -1).trim());
+  });
   tagsInput.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' || !tagsInput.value.trim()) return;
     event.preventDefault();
-    const li = doc.createElement('li');
-    li.textContent = tagsInput.value.trim();
-    doc.getElementById('tag-list')!.append(li);
-    tagsInput.value = '';
+    addChip(tagsInput.value.trim());
   });
 
   doc.getElementById('continue')!.addEventListener('click', state.openFinalTouches);

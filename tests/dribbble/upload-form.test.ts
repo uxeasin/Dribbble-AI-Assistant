@@ -80,6 +80,20 @@ describe('form filling', () => {
     expect(page.tags()).toEqual(CONTENT.tags);
   });
 
+  it('falls back to Enter for pickers that ignore commas', async () => {
+    document.body.insertAdjacentHTML('beforeend', '<label for="enter-only">Tags</label><input id="enter-only" /><ul id="chips"></ul>');
+    const input = document.getElementById('enter-only') as HTMLInputElement;
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && input.value.trim()) {
+        document.getElementById('chips')!.insertAdjacentHTML('beforeend', `<li>${input.value}</li>`);
+        input.value = '';
+      }
+    });
+    const result = await fillTags(input, CONTENT.tags);
+    expect(result.filled).toBe(3);
+    expect(Array.from(document.querySelectorAll('#chips li')).map((li) => li.textContent)).toEqual(CONTENT.tags);
+  });
+
   it('falls back to comma-separated text for plain inputs', async () => {
     document.body.insertAdjacentHTML('beforeend', '<input id="plain" aria-label="Tags" />');
     const plain = document.getElementById('plain') as HTMLInputElement;

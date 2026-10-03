@@ -18,6 +18,9 @@ import { by, type Locator } from './dom-utils';
 const SINGLE_LINE = 'input:not([type]), input[type="text"], textarea, [contenteditable="true"], [contenteditable=""]';
 const MULTI_LINE = 'textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]';
 const TAG_CONTROL = 'input:not([type]), input[type="text"], input[type="search"], [contenteditable="true"], [role="combobox"]';
+/** Any text-like control; used for caption-based lookups where the input itself may be unlabeled. */
+const TEXTLIKE_CONTROL =
+  'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="image"]):not([type="reset"]), textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]';
 
 export const FILE_INPUT: readonly Locator[] = [
   by.css('input[type="file"][accept*="image"]'),
@@ -50,18 +53,41 @@ export const TAGS_FIELD: readonly Locator[] = [
   by.label(/^\s*tags?\b/i, TAG_CONTROL),
   by.attribute('aria-label', /\btags?\b/i, TAG_CONTROL),
   by.attribute('placeholder', /\btags?\b/i, TAG_CONTROL),
+  by.attribute('placeholder', /\btags?\b/i, TEXTLIKE_CONTROL),
   by.css('input[name="tags"], input[name$="[tags]"], input[name*="tag" i], input[id*="tag" i]'),
+  // "Tags (maximum 20)" caption above an unlabeled tokenizer input.
+  by.near(/^tags?\b/i, TEXTLIKE_CONTROL),
+  // Tag pickers (e.g. react-select) draw "Add tags…" as a sibling element, not a placeholder attribute.
+  by.near(/^add (a )?tags?\b/i, TEXTLIKE_CONTROL, 3),
+];
+
+/**
+ * The editor's "Continue" button, which opens the "Final touches" dialog where
+ * tags are entered. It does not publish. This is the ONLY control the
+ * extension ever activates (see steps.ts); exact-text matching only.
+ */
+export const CONTINUE_BUTTON: readonly Locator[] = [
+  by.text(/^(continue|next)$/i, 'button, [role="button"]'),
 ];
 
 /**
  * Controls that publish or submit the shot. Used ONLY to recognise and guard
  * them (see publish-guard.ts) and in tests — never to interact with them.
  */
-export const PUBLISH_CONTROLS: readonly Locator[] = [
-  by.text(/^(publish( now| shot)?|submit|post( shot)?|schedule|share shot)$/i, 'button, [role="button"], a, input[type="submit"]'),
-  by.attribute('aria-label', /publish|submit/i, 'button, [role="button"], a, input'),
-  by.css('button[type="submit"], input[type="submit"]'),
+/** The visible "Publish now" button of the final step; its presence means that step is open. */
+export const PUBLISH_BUTTON: readonly Locator[] = [
+  by.text(/^(publish( now| shot)?|post( shot)?|share shot)$/i, 'button, [role="button"], a, input[type="submit"]'),
 ];
+
+/** Controls whose name says they publish or submit. */
+export const NAMED_PUBLISH_CONTROLS: readonly Locator[] = [
+  ...PUBLISH_BUTTON,
+  by.text(/^(submit|schedule)$/i, 'button, [role="button"], a, input[type="submit"]'),
+  by.attribute('aria-label', /publish|submit/i, 'button, [role="button"], a, input'),
+];
+
+/** Every control that could submit something, including unnamed submit buttons. */
+export const PUBLISH_CONTROLS: readonly Locator[] = [...NAMED_PUBLISH_CONTROLS, by.css('button[type="submit"], input[type="submit"]')];
 
 export const UPLOAD_ERROR: readonly Locator[] = [
   by.text(/too large|unsupported|upload failed|couldn.?t upload|could not be uploaded|try again/i, '[role="alert"], [aria-live="assertive"], [aria-live="polite"]'),

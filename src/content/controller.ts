@@ -6,7 +6,9 @@
 // publish/submit command, and nothing here clicks a button.
 
 import { fillShotDetails, fillTags, locateTagsField } from '../dribbble/form';
-import { sleep, waitFor } from '../dribbble/dom-utils';
+import { openTagStep } from '../dribbble/steps';
+import { findFirst, sleep, waitFor } from '../dribbble/dom-utils';
+import { PUBLISH_BUTTON } from '../dribbble/selectors';
 import { detectPageStatus } from '../dribbble/navigation';
 import { uploadImage } from '../dribbble/upload';
 import { dataUrlToBytes } from '../image/encoding';
@@ -20,6 +22,8 @@ import { StatusBanner } from './status-banner';
 const TAG_WAIT_MS = 20 * 60 * 1000;
 /** Lets the "Final touches" dialog finish animating before typing into it. */
 const DIALOG_SETTLE_MS = 300;
+/** How long the final step may be open without a recognisable tag field before giving up. */
+const MISSING_TAG_FIELD_MS = 3000;
 
 export interface ControllerDeps {
   doc?: Document;
@@ -82,7 +86,23 @@ export function createContentController({
       emit({ type: 'UPLOAD_PROGRESS', payload: { progress: 0.7, stage: 'filling-details' } });
 
       const result = await fillShotDetails(content, doc);
-      const tagsPending = result.tags === null && content.tags.length > 0;
+      let tagsFilled = result.tags?.filled ?? 0;
+      let tagsPending = result.tags === null && content.tags.length > 0;
+
+      if (tagsPending) {
+        // Dribbble asks for tags in its "Final touches" dialog. "Continue" only
+        // opens that dialog; its Publish button is never touched.
+        banner.show({ tone: 'working', title: 'Adding tags…', body: 'Opening Dribbble\'s final step to add your tags.' });
+        const field = await openTagStep(doc);
+        if (field) {
+          await sleep(DIALOG_SETTLE_MS);
+          const tags = await fillTags(field.element, content.tags);
+          tagsFilled = tags.filled;
+          result.warnings.push(...tags.warnings);
+          tagsPending = false;
+        }
+      }
+
       if (tagsPending) {
         watchForTags(content.tags);
         banner.show({
@@ -98,7 +118,7 @@ export function createContentController({
       return {
         title: result.title,
         description: result.description,
-        tagsFilled: result.tags?.filled ?? 0,
+        tagsFilled,
         tagsPending,
         warnings: result.warnings,
       };
@@ -121,11 +141,25 @@ export function createContentController({
 
     void (async () => {
       try {
-        const field = await waitFor(() => locateTagsField(doc), { timeoutMs: TAG_WAIT_MS, signal, root: doc });
-        if (!field) {
+        // Resolves with the tag field, or 'missing' if Dribbble's final step
+        // (its Publish button) is showing but no tag field can be recognised.
+        let finalStepSeenAt = 0;
+        const found = await waitFor<ReturnType<typeof locateTagsField> | 'missing'>(
+          () => {
+            const tagField = locateTagsField(doc);
+            if (tagField) return tagField;
+            if (!findFirst(PUBLISH_BUTTON, doc)) return (finalStepSeenAt = 0), null;
+            finalStepSeenAt ||= Date.now();
+            return Date.now() - finalStepSeenAt > MISSING_TAG_FIELD_MS ? 'missing' : null;
+          },
+          { timeoutMs: TAG_WAIT_MS, signal, root: doc },
+        );
+        if (!found) {
           banner.hide();
           return;
         }
+        if (found === 'missing') throw new AppError('DOM_CHANGED', "Dribbble's final step is open but its tag field wasn't recognised");
+        const field = found;
         await sleep(DIALOG_SETTLE_MS, signal);
         const result = await exclusive(() => fillTags(field.element, tags, signal));
         emit({ type: 'TAGS_FILLED', payload: { count: result.filled } });

@@ -15,10 +15,13 @@
 // The content script exposes no publish method. As defence in depth, while
 // automation runs this guard cancels any form submission and any scripted
 // (untrusted) click on a publish/submit control — e.g. if Dribbble's own key
-// handlers reacted to a simulated Enter press by submitting. The guard is only
-// active during automation, so the designer's own clicks are never affected.
+// handlers reacted to a simulated Enter press by submitting. The one exception
+// is a submission made by the editor's "Continue" button, which only opens
+// the tag dialog. The guard is only active during automation, so the
+// designer's own clicks are never affected.
 
-import { PUBLISH_CONTROLS } from '../dribbble/selectors';
+import { CONTINUE_BUTTON, PUBLISH_CONTROLS } from '../dribbble/selectors';
+import { isPublishControl as isNamedPublishControl } from '../dribbble/steps';
 
 export interface GuardHandle {
   readonly blocked: number;
@@ -40,7 +43,12 @@ export function installPublishGuard(doc: Document = document): GuardHandle {
     blocked++;
     console.warn('[Dribbble AI Assistant] Blocked an automatic publish/submit attempt.');
   };
-  const onSubmit = (event: Event) => block(event);
+  const onSubmit = (event: Event) => {
+    const source = (event as SubmitEvent).submitter ?? null;
+    const isContinue =
+      source !== null && CONTINUE_BUTTON.some((locator) => locator.find(doc).includes(source)) && !isNamedPublishControl(source, doc);
+    if (!isContinue) block(event);
+  };
   const onClick = (event: MouseEvent) => {
     if (!event.isTrusted && isPublishControl(event.target, doc)) block(event);
   };

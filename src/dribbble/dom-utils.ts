@@ -74,6 +74,37 @@ export const by = {
     };
   },
 
+  /**
+   * A short caption (heading, label, span…) such as "Tags (maximum 20)" →
+   * the nearest matching control in the same section. Handles fields whose
+   * visible label is not a real <label> element.
+   */
+  near(pattern: RegExp, controlSelector: string, maxDepth = 4): Locator {
+    return {
+      description: `near caption ${pattern}`,
+      find(root) {
+        const results = new Set<Element>();
+        const captions = Array.from(root.querySelectorAll('label, legend, h1, h2, h3, h4, h5, h6, p, span, div, strong, b')).filter(
+          (el) => {
+            const text = textOf(el);
+            return text.length > 0 && text.length <= 40 && pattern.test(text);
+          },
+        );
+        for (const caption of captions) {
+          let scope: Element | null = caption.parentElement;
+          for (let depth = 0; scope && depth < maxDepth; depth++, scope = scope.parentElement) {
+            const control = Array.from(scope.querySelectorAll(controlSelector)).find((el) => !caption.contains(el));
+            if (control) {
+              results.add(control);
+              break;
+            }
+          }
+        }
+        return Array.from(results);
+      },
+    };
+  },
+
   text(pattern: RegExp, selector: string): Locator {
     return {
       description: `text ${pattern} in ${selector}`,

@@ -25,16 +25,13 @@ import {
   writeRichText,
   type Match,
 } from './dom-utils';
-import { DESCRIPTION_FIELD, PUBLISH_CONTROLS, TAGS_FIELD, TITLE_FIELD } from './selectors';
+import { DESCRIPTION_FIELD, TAGS_FIELD, TITLE_FIELD } from './selectors';
+import { isPublishControl } from './steps';
 
 export interface ShotFields {
   title: Match;
   description: Match;
   tags: Match | null;
-}
-
-function isPublishControl(el: Element, root: ParentNode): boolean {
-  return PUBLISH_CONTROLS.some((locator) => locator.find(root).includes(el));
 }
 
 /**
@@ -90,7 +87,8 @@ export interface TagFillResult {
   warnings: string[];
 }
 
-const TAG_SETTLE_MS = 60;
+/** Tag pickers open a suggestion menu after typing; give it time before pressing Enter. */
+const TAG_SETTLE_MS = 150;
 
 function setTagInputValue(el: Element, value: string): void {
   if (isTextControl(el)) setNativeValue(el, value);
@@ -98,7 +96,7 @@ function setTagInputValue(el: Element, value: string): void {
 }
 
 /**
- * Enters tags one at a time like a user would (type, then Enter or comma).
+ * Enters tags one at a time like a user would (type, then comma, or Enter as a fallback).
  * A tokenising tag field clears its input once a tag is accepted, which is how
  * acceptance is verified. If the field never tokenises, it is treated as a plain
  * comma-separated text field.
@@ -111,18 +109,21 @@ export async function fillTags(el: Element, tags: readonly string[], signal?: Ab
 
   for (const [index, tag] of tags.entries()) {
     signal?.throwIfAborted();
-    setTagInputValue(el, tag);
-    pressKey(el, 'Enter');
-    await sleep(TAG_SETTLE_MS, signal);
 
+    // Dribbble's tag field tokenises on a comma; this also avoids Enter
+    // accidentally picking a highlighted suggestion instead of the typed tag.
+    setTagInputValue(el, `${tag},`);
+    pressKey(el, ',');
+    await sleep(TAG_SETTLE_MS, signal);
     if (!readValue(el).trim()) {
       filled++;
       continue;
     }
 
-    // Some tokenisers only split on a comma.
-    setTagInputValue(el, `${tag},`);
-    pressKey(el, ',');
+    // Fallback for pickers that only add on Enter.
+    setTagInputValue(el, tag);
+    await sleep(TAG_SETTLE_MS, signal); // let the picker show its "create tag" option
+    pressKey(el, 'Enter');
     await sleep(TAG_SETTLE_MS, signal);
     if (!readValue(el).trim()) {
       filled++;

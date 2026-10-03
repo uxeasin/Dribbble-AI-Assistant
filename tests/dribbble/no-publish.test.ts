@@ -47,27 +47,58 @@ describe('publishing is never automated', () => {
     });
   }
 
-  it('runs the full flow — upload, title, description, tags — without any publish or submit action', async () => {
+  it('runs the full flow — upload, title, description, Continue, tags — and never publishes', async () => {
     const content = controller();
 
     const uploaded = await content.handle({ type: 'UPLOAD_IMAGE', payload: await imagePayload() });
     expect(uploaded).toMatchObject({ ok: true });
 
     const filled = await content.handle({ type: 'FILL_SHOT_DETAILS', payload: CONTENT });
-    expect(filled).toMatchObject({ ok: true, title: true, description: true, tagsPending: true });
-
-    // The designer clicks "Continue" themselves; tags are then filled automatically.
-    page.openFinalTouches();
-    await vi.waitFor(() => expect(events.some((e) => e.type === 'TAGS_FILLED')).toBe(true), { timeout: 3000 });
+    expect(filled).toMatchObject({ ok: true, title: true, description: true, tagsPending: false, tagsFilled: CONTENT.tags.length });
 
     expect(page.tags()).toEqual(CONTENT.tags);
     expect((document.querySelector('textarea') as HTMLTextAreaElement).value).toBe(CONTENT.title);
     expect(document.querySelector('.ProseMirror')!.textContent).toContain('modern SaaS products');
 
-    // Nothing was published, submitted or clicked.
+    // The only control ever activated is "Continue", which opens the tag dialog.
+    const [clickSpy, submitSpy, requestSubmitSpy] = spies;
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(clickSpy!.mock.contexts[0]).toBe(document.getElementById('continue'));
+    expect(submitSpy).not.toHaveBeenCalled();
+    expect(requestSubmitSpy).not.toHaveBeenCalled();
     expect(page.publishClicks).toBe(0);
     expect(page.submits).toBe(0);
+    content.dispose();
+  });
+
+  it('falls back to waiting for the designer when there is no Continue button', async () => {
+    document.getElementById('continue')!.remove();
+    const content = controller();
+    await content.handle({ type: 'UPLOAD_IMAGE', payload: await imagePayload() });
+    const filled = await content.handle({ type: 'FILL_SHOT_DETAILS', payload: CONTENT });
+    expect(filled).toMatchObject({ ok: true, tagsPending: true });
+
+    page.openFinalTouches();
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'TAGS_FILLED')).toBe(true), { timeout: 3000 });
+    expect(page.tags()).toEqual(CONTENT.tags);
+    expect(page.publishClicks).toBe(0);
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    content.dispose();
+  });
+
+  it('reports when the final step opens but its tag field is unrecognisable', async () => {
+    document.getElementById('continue')!.remove();
+    const content = controller();
+    await content.handle({ type: 'UPLOAD_IMAGE', payload: await imagePayload() });
+    await content.handle({ type: 'FILL_SHOT_DETAILS', payload: CONTENT });
+
+    // Dribbble ships a tag widget the selectors don't know.
+    document.getElementById('tags-input')!.replaceWith(Object.assign(document.createElement('div'), { id: 'unknown-widget' }));
+    document.querySelector('label[for="tags-input"]')!.textContent = 'Keywords';
+    page.openFinalTouches();
+
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'TAGS_FAILED')).toBe(true), { timeout: 5000 });
+    expect(page.publishClicks).toBe(0);
     content.dispose();
   });
 
@@ -100,6 +131,20 @@ describe('publishing is never automated', () => {
 
     expect(page.publishClicks).toBe(0);
     expect(page.submits).toBe(0);
+  });
+
+  it('lets a Continue submission through but blocks a Publish submission', () => {
+    document.body.innerHTML = `
+      <form id="f"><button type="submit" id="go">Continue</button><button type="submit" id="pub">Publish now</button></form>`;
+    const form = document.getElementById('f')!;
+    const seen: string[] = [];
+    form.addEventListener('submit', (e) => seen.push(((e as SubmitEvent).submitter as HTMLElement).id));
+    const guard = installPublishGuard();
+    form.dispatchEvent(new SubmitEvent('submit', { submitter: document.getElementById('go'), bubbles: true, cancelable: true }));
+    form.dispatchEvent(new SubmitEvent('submit', { submitter: document.getElementById('pub'), bubbles: true, cancelable: true }));
+    guard.release();
+    expect(seen).toEqual(['go']);
+    expect(guard.blocked).toBe(1);
   });
 
   it('does not interfere with the designer’s own clicks outside automation', () => {
@@ -140,8 +185,15 @@ describe('source code safety boundary', () => {
     expect(files.length).toBeGreaterThan(8);
   });
 
+  it('only clicks in steps.ts, and only the Continue button', () => {
+    const clickers = files.filter((file) => /\.click\s*\(/.test(stripComments(readFileSync(file, 'utf8')))).map((f) => relative(root, f));
+    expect(clickers).toEqual(['dribbble/steps.ts']);
+    const steps = stripComments(readFileSync(join(root, 'dribbble/steps.ts'), 'utf8'));
+    expect(steps.match(/\.click\s*\(/g)).toHaveLength(1);
+    expect(steps).toMatch(/const button = findContinueButton\(root\);[\s\S]*button\.click\(\)/);
+  });
+
   it.each([
-    ['.click()', /\.click\s*\(/],
     ['requestSubmit()', /requestSubmit\s*\(/],
     ['form.submit()', /\.submit\s*\(/],
     // Detection helpers such as isPublishControl/onSubmit are fine; actions such as publishShot() are not.
