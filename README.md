@@ -39,7 +39,9 @@ npm run test       # unit tests (Vitest + jsdom)
 
 1. Run `npm run build` (or `npm run dev`).
 2. Open `chrome://extensions` and turn on **Developer mode**.
-3. Click **Load unpacked** and select the `dist/` folder.
+3. Click **Load unpacked** and select the **`dist/`** folder.
+
+> Don't load the repository folder itself (for example a ZIP downloaded from GitHub). The root `manifest.json` is only the build template, and Chrome will report *"Could not load background script"*. The loadable extension only exists in `dist/` after a build.
 4. Pin **Dribbble AI Assistant** to the toolbar.
 
 ## 5. Configuring AI
