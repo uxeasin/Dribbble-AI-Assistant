@@ -4,6 +4,8 @@ export const USER_MESSAGES: Record<ErrorCode, string> = {
   AI_FAILED: "Couldn't generate content. Please try again.",
   AI_NOT_CONFIGURED: 'Add your AI API key in Settings to generate content.',
   AI_AUTH: 'Your AI provider rejected the API key. Check it in Settings.',
+  AI_MODEL_UNAVAILABLE: "The selected AI model isn't available for your API key. Choose another model in Settings.",
+  AI_RATE_LIMITED: "Your AI provider's rate limit or quota was reached. Wait a minute and try again, or check your plan.",
   INVALID_IMAGE: 'Please select a PNG, JPG or WebP image.',
   IMAGE_TOO_LARGE: 'This image is too large. Dribbble accepts images up to 10 MB.',
   IMAGE_MISSING: 'The selected image is no longer available. Please select it again.',

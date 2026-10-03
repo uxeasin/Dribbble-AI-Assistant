@@ -30,7 +30,9 @@ export function parseJsonObject(text: string | null | undefined): JsonObject {
 
   for (const candidate of candidates) {
     try {
-      const parsed: unknown = JSON.parse(candidate);
+      let parsed: unknown = JSON.parse(candidate);
+      // Gemini's JSON mode sometimes wraps the object in a one-element array.
+      if (Array.isArray(parsed) && parsed.length === 1) parsed = parsed[0];
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) return parsed as JsonObject;
     } catch {
       // try the next candidate
@@ -111,16 +113,19 @@ export function validateDesignAnalysis(value: unknown): DesignAnalysis {
   const obj = (typeof value === 'string' ? parseJsonObject(value) : value) as JsonObject | null;
   if (typeof obj !== 'object' || obj === null) throw invalid('analysis is not an object');
 
+  const keywords = stringList(obj.keywords, 20);
   const designType = optionalString(obj.designType);
   const subject = optionalString(obj.subject);
-  if (!designType || !subject) throw invalid('analysis missing designType or subject');
+  // The analysis is only context for later prompts, so partial answers are
+  // usable; fail only when the model returned nothing that describes the design.
+  if (!designType && !subject && !keywords.length) throw invalid('analysis has no designType, subject or keywords');
 
   const analysis: DesignAnalysis = {
-    designType,
-    subject,
+    designType: designType ?? 'UI design',
+    subject: subject ?? keywords.slice(0, 5).join(', '),
     visualStyle: optionalString(obj.visualStyle) ?? 'unspecified',
     colors: stringList(obj.colors, 8),
-    keywords: stringList(obj.keywords, 20),
+    keywords,
   };
   const industry = optionalString(obj.industry);
   const typography = optionalString(obj.typography);

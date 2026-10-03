@@ -129,9 +129,11 @@ export abstract class JsonPromptProvider implements AIProvider {
 
     if (!response.ok) {
       const text = await response.text().catch(() => '');
-      if (this.isAuthError(response.status, text)) throw new AppError('AI_AUTH', `HTTP ${response.status}`);
-      const retryable = response.status === 429 || response.status >= 500;
-      throw new AppError('AI_FAILED', `HTTP ${response.status}: ${text.slice(0, 300)}`, { retryable });
+      const detail = `HTTP ${response.status}: ${extractErrorMessage(text)}`;
+      if (this.isAuthError(response.status, text)) throw new AppError('AI_AUTH', detail);
+      if (response.status === 404) throw new AppError('AI_MODEL_UNAVAILABLE', `Model "${this.config.model}". ${detail}`);
+      if (response.status === 429) throw new AppError('AI_RATE_LIMITED', detail, { retryable: true });
+      throw new AppError('AI_FAILED', detail, { retryable: response.status >= 500 });
     }
     return (await response.json().catch(() => null)) as T | null;
   }
@@ -139,6 +141,18 @@ export abstract class JsonPromptProvider implements AIProvider {
   protected isAuthError(status: number, _body: string): boolean {
     return status === 401 || status === 403;
   }
+}
+
+/** Pulls the human-readable message out of an API error body (OpenAI and Google formats). */
+function extractErrorMessage(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string } } | { error?: { message?: string } }[];
+    const error = Array.isArray(parsed) ? parsed[0]?.error : parsed.error;
+    if (error?.message) return error.message.slice(0, 300);
+  } catch {
+    // not JSON
+  }
+  return body.slice(0, 300) || 'no details';
 }
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {

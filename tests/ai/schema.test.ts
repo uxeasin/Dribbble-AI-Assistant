@@ -42,8 +42,13 @@ describe('parseJsonObject', () => {
     expectAiFailure(() => parseJsonObject('not json at all'));
   });
 
-  it('rejects arrays and primitives', () => {
+  it('unwraps a one-element array around the object (Gemini JSON mode)', () => {
+    expect(parseJsonObject('[{"title":"A"}]')).toEqual({ title: 'A' });
+  });
+
+  it('rejects other arrays and primitives', () => {
     expectAiFailure(() => parseJsonObject('["a"]'));
+    expectAiFailure(() => parseJsonObject('[{"a":1},{"b":2}]'));
     expectAiFailure(() => parseJsonObject('42'));
   });
 
@@ -105,7 +110,7 @@ describe('validateTitle', () => {
 });
 
 describe('validateDesignAnalysis', () => {
-  it('requires designType and subject, defaulting the rest', () => {
+  it('fills defaults for optional fields', () => {
     expect(validateDesignAnalysis({ designType: 'dashboard', subject: 'Analytics for SaaS' })).toEqual({
       designType: 'dashboard',
       subject: 'Analytics for SaaS',
@@ -113,6 +118,10 @@ describe('validateDesignAnalysis', () => {
       colors: [],
       keywords: [],
     });
-    expectAiFailure(() => validateDesignAnalysis({ subject: 'x' }));
+    expect(validateDesignAnalysis({ keywords: ['fitness', 'mobile app'] })).toMatchObject({
+      designType: 'UI design',
+      subject: 'fitness, mobile app',
+    });
+    expectAiFailure(() => validateDesignAnalysis({ colors: ['#fff'] }));
   });
 });

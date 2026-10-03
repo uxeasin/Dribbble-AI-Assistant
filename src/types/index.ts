@@ -97,6 +97,8 @@ export type ErrorCode =
   | 'AI_FAILED'
   | 'AI_NOT_CONFIGURED'
   | 'AI_AUTH'
+  | 'AI_MODEL_UNAVAILABLE'
+  | 'AI_RATE_LIMITED'
   | 'INVALID_IMAGE'
   | 'IMAGE_TOO_LARGE'
   | 'IMAGE_MISSING'

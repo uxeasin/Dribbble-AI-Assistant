@@ -73,6 +73,24 @@ describe('GeminiProvider', () => {
     await expect(promise).rejects.toMatchObject({ code: 'AI_AUTH' });
   });
 
+  it('explains an unavailable model (404) with the API message', async () => {
+    const body = '{"error":{"code":404,"message":"models/gemini-x is not found for API version v1beta","status":"NOT_FOUND"}}';
+    const promise = new GeminiProvider({ ...CONFIG, model: 'gemini-x' }, mockFetch(new Response(body, { status: 404 }))).analyzeDesign(new Blob(['x']));
+    await expect(promise).rejects.toMatchObject({ code: 'AI_MODEL_UNAVAILABLE', detail: expect.stringContaining('is not found') });
+  });
+
+  it('reports quota exhaustion (429) after one retry', async () => {
+    const quota = () => new Response('{"error":{"code":429,"message":"Quota exceeded","status":"RESOURCE_EXHAUSTED"}}', { status: 429 });
+    const fetchMock = mockFetch(quota(), quota());
+    await expect(new GeminiProvider(CONFIG, fetchMock).analyzeDesign(new Blob(['x']))).rejects.toMatchObject({ code: 'AI_RATE_LIMITED' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('accepts an array-wrapped JSON answer', async () => {
+    const value = await new GeminiProvider(CONFIG, mockFetch(reply('[{"title":"Fitness Tracking App"}]'))).regenerateField('title', ANALYSIS, CURRENT, OPTIONS);
+    expect(value).toBe('Fitness Tracking App');
+  });
+
   it('reports blocked prompts and safety stops as AI failures', async () => {
     const blocked = mockFetch(new Response(JSON.stringify({ promptFeedback: { blockReason: 'SAFETY' } })));
     await expect(new GeminiProvider(CONFIG, blocked).analyzeDesign(new Blob(['x']))).rejects.toMatchObject({ code: 'AI_FAILED' });
