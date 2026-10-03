@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Dribbble AI Assistant",
+  "short_name": "Shot Assistant",
+  "description": "Turn your design into a Dribbble-ready shot. AI prepares the title, description and tags — you review and publish.",
+  "version": "0.0.0",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_title": "Dribbble AI Assistant",
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "scripting"],
+  "host_permissions": ["https://dribbble.com/*", "https://api.openai.com/*"],
+  "optional_host_permissions": ["https://*/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
