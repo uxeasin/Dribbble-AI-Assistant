@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   /** Development builds only — see .env.example. */
   readonly VITE_DEV_OPENAI_API_KEY?: string;
   readonly VITE_DEV_GEMINI_API_KEY?: string;
+  readonly VITE_DEV_ANTHROPIC_API_KEY?: string;
 }
 
 interface ImportMeta {

@@ -63,6 +63,7 @@ export async function getApiKey(providerId: string): Promise<string | undefined>
     const devKeys: Record<string, string | undefined> = {
       openai: import.meta.env.VITE_DEV_OPENAI_API_KEY,
       gemini: import.meta.env.VITE_DEV_GEMINI_API_KEY,
+      claude: import.meta.env.VITE_DEV_ANTHROPIC_API_KEY,
     };
     return devKeys[providerId] || undefined;
   }

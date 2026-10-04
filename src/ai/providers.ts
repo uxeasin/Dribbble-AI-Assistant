@@ -4,10 +4,11 @@
 import type { UserSettings } from '../types';
 import { AppError } from '../utils/errors';
 import type { AIProvider, ProviderDescriptor } from './ai-provider';
+import { claudeDescriptor } from './claude-provider';
 import { geminiDescriptor } from './gemini-provider';
 import { openAIDescriptor } from './openai-provider';
 
-export const PROVIDERS: readonly ProviderDescriptor[] = [openAIDescriptor, geminiDescriptor];
+export const PROVIDERS: readonly ProviderDescriptor[] = [openAIDescriptor, geminiDescriptor, claudeDescriptor];
 
 export function getProviderDescriptor(id: string): ProviderDescriptor {
   return PROVIDERS.find((p) => p.id === id) ?? openAIDescriptor;

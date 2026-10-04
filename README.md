@@ -52,12 +52,15 @@ Click the toolbar icon to open the assistant, click the gear icon, choose a prov
 | --- | --- | --- |
 | OpenAI | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | `gpt-4o-mini` |
 | Google Gemini | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) | `gemini-flash-latest` |
+| Anthropic Claude | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) | `claude-opus-5-5` (change it under **Advanced**, e.g. `claude-sonnet-5-5`) |
+
+Claude uses Anthropic's official SDK (`@anthropic-ai/sdk`) directly from the extension, with your own key. Claude models always think before answering, so a shot can take a little longer than with Gemini. The extension also enables Anthropic's server-side refusal fallback (`fallbacks: "default"`): if a safety check declines a request, it is retried on a fallback model within the same call.
 
 Switching provider resets the model and base URL to that provider's defaults. Google retires Gemini model names regularly. If the configured Gemini model returns *not found*, the extension asks the API which models your key can use and switches to the newest Flash model automatically. Each provider's key is stored separately, so you can switch back and forth without re-entering them.
 
 | Setting | Notes |
 | --- | --- |
-| Provider | OpenAI (or any OpenAI-compatible API via **Advanced → API base URL**), or Google Gemini. |
+| Provider | OpenAI (or any OpenAI-compatible API via **Advanced → API base URL**), Google Gemini, or Anthropic Claude. |
 | API key | Stored in `chrome.storage.local` on this device only. It is never synced, never readable by the content script, and never committed or bundled. |
 | Model | Must accept image input. Change it under **Advanced**; build-time default via `VITE_AI_MODEL`. |
 | Tone | Professional, Minimal or Creative. |
@@ -103,7 +106,7 @@ The extension does **not**:
 - ask for your Dribbble password
 - auto-publish anything
 
-Permissions requested: `storage`, `scripting`, `sidePanel`, and host access to `dribbble.com`, `api.openai.com` and `generativelanguage.googleapis.com` (Gemini).
+Permissions requested: `storage`, `scripting`, `sidePanel`, and host access to `dribbble.com`, `api.openai.com`, `generativelanguage.googleapis.com` (Gemini) and `api.anthropic.com` (Claude).
 
 ## 8. Known Dribbble limitations
 
@@ -150,7 +153,7 @@ Side panel (React) ──Port "workflow"──▶ Background service worker ─�
 - **`src/background/`** owns the workflow state machine (`idle → selected → preparing → review → uploading → ready`), persists it in session storage, runs the AI calls (so they survive the panel closing), and opens and drives the Dribbble tab.
 - **`src/popup/`** is the side-panel UI: a view of the background state, plus the settings screen. Edits are kept in a local draft that merges safely with AI regenerations.
 - **`src/content/`** is injected only into the upload tab. Its whole surface is `PING`, `PROBE_PAGE`, `UPLOAD_IMAGE` and `FILL_SHOT_DETAILS`. **There is no publish command.**
-- **`src/ai/`** contains the provider interface, the OpenAI and Gemini implementations (sharing `json-provider.ts`), prompts, and schema validation of AI output. Malformed JSON, missing fields and oversized tag lists are handled, with one automatic retry.
+- **`src/ai/`** contains the provider interface, the OpenAI, Gemini and Claude implementations (sharing `json-provider.ts`), prompts, and schema validation of AI output. Malformed JSON, missing fields and oversized tag lists are handled, with one automatic retry.
 - **`src/image/`** holds local-only validation and processing.
 - **`src/messaging/messages.ts`** holds the typed message contracts.
 
@@ -174,7 +177,7 @@ The code uses standard WebExtension APIs through `chrome.*`. To add Firefox or E
 
 ```text
 src/
-  ai/          provider interface, OpenAI + Gemini providers, prompts, schema validation, generator
+  ai/          provider interface, OpenAI + Gemini + Claude providers, prompts, schema validation, generator
   background/  service worker, workflow state machine, tab + image stores
   content/     content script, controller, publish guard, on-page status banner
   dribbble/    selectors, navigation, upload, form, DOM helpers
