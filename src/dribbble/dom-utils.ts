@@ -219,19 +219,7 @@ export function containsText(el: Element, expected: string): boolean {
   return probe.length > 0 && actual.includes(probe);
 }
 
-export interface RichTextBlock {
-  /** Inner HTML of one paragraph, e.g. "<strong>Key Screens</strong>". */
-  html: string;
-  text: string;
-}
-
-export type RichTextMethod = 'paste' | 'blocks' | 'insertText' | 'dom';
-
-export interface RichTextResult {
-  method: RichTextMethod;
-  /** False when the text landed but its paragraph structure did not. */
-  structured: boolean;
-}
+export type RichTextMethod = 'paste' | 'insertText';
 
 /** Number of non-empty leaf blocks (paragraphs, list items, headings) in an editor. */
 export function countTextBlocks(el: Element): number {
@@ -241,82 +229,38 @@ export function countTextBlocks(el: Element): number {
   return blocks.length || ((el.textContent ?? '').trim() ? 1 : 0);
 }
 
-function execCommand(el: HTMLElement, command: string, value?: string): boolean {
-  const doc = el.ownerDocument as Document & { execCommand?: Document['execCommand'] };
-  try {
-    return typeof doc.execCommand === 'function' && doc.execCommand(command, false, value);
-  } catch {
-    return false;
-  }
-}
-
 /**
- * Replaces the contents of a rich-text editor, keeping paragraph structure.
- * Strategies, in order:
- * 1. a synthetic paste with HTML (editors read event.clipboardData, which keeps their state in sync),
- * 2. block by block: insert each paragraph, then press Enter to start the next one,
- * 3. execCommand('insertText') with the plain text,
- * 4. direct DOM write + input event (last resort; reported so it can be verified).
+ * Replaces the contents of a rich-text editor using only input paths the
+ * editor itself processes, so its internal state (what Dribbble saves when
+ * "Continue" is clicked) always matches what is on screen:
+ * 1. a synthetic paste carrying HTML and plain text (editors read event.clipboardData),
+ * 2. execCommand('insertText'), which editors observe via beforeinput/input.
+ * The DOM is never written directly: an editor would discard such content on
+ * its next re-render. Returns null when neither path worked.
  */
-export function writeRichText(el: HTMLElement, text: string, blocks?: readonly RichTextBlock[]): RichTextResult {
-  const parts = blocks?.length ? blocks : [{ html: escapeHtml(text), text }];
-  const html = parts.map((b) => `<p>${b.html}</p>`).join('');
-  const wanted = Math.min(parts.length, 2);
-  const isStructured = () => countTextBlocks(el) >= wanted;
+export function writeRichText(el: HTMLElement, text: string, html: string = `<p>${escapeHtml(text)}</p>`): RichTextMethod | null {
   el.focus();
   selectContents(el);
 
-  let flatPaste = false;
   if (typeof ClipboardEvent === 'function' && typeof DataTransfer === 'function') {
     const data = new DataTransfer();
     data.setData('text/plain', text);
     data.setData('text/html', html);
     const paste = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
     el.dispatchEvent(paste);
-    if (paste.defaultPrevented && containsText(el, text)) {
-      if (isStructured()) return { method: 'paste', structured: true };
-      flatPaste = true;
-    }
-  }
-
-  if (parts.length > 1 && writeBlocks(el, parts) && containsText(el, text) && isStructured()) {
-    return { method: 'blocks', structured: true };
-  }
-
-  if (flatPaste) {
-    // Re-paste so the editor isn't left with a half-written block attempt.
-    selectContents(el);
-    const data = new DataTransfer();
-    data.setData('text/plain', text);
-    data.setData('text/html', html);
-    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
-    if (containsText(el, text)) return { method: 'paste', structured: isStructured() };
+    if (paste.defaultPrevented && containsText(el, text)) return 'paste';
   }
 
   selectContents(el);
-  if (execCommand(el, 'insertText', text) && containsText(el, text)) {
-    return { method: 'insertText', structured: isStructured() };
-  }
-
-  el.innerHTML = html;
-  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste', data: text }));
-  return { method: 'dom', structured: isStructured() };
-}
-
-/** Types paragraphs one at a time, pressing Enter between them like a user would. */
-function writeBlocks(el: HTMLElement, blocks: readonly RichTextBlock[]): boolean {
-  selectContents(el);
-  if (!execCommand(el, 'delete') && (el.textContent ?? '').trim()) return false;
-  for (const [index, block] of blocks.entries()) {
-    if (index > 0) {
-      const before = countTextBlocks(el);
-      pressKey(el, 'Enter');
-      if (countTextBlocks(el) <= before && !execCommand(el, 'insertParagraph')) return false;
+  const doc = el.ownerDocument as Document & { execCommand?: Document['execCommand'] };
+  try {
+    if (typeof doc.execCommand === 'function' && doc.execCommand('insertText', false, text) && containsText(el, text)) {
+      return 'insertText';
     }
-    const inserted = block.html.includes('<') ? execCommand(el, 'insertHTML', block.html) : execCommand(el, 'insertText', block.text);
-    if (!inserted) return false;
+  } catch {
+    // fall through
   }
-  return true;
+  return null;
 }
 
 export function setInputFiles(input: HTMLInputElement, files: File[]): void {

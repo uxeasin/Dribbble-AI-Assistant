@@ -5,7 +5,7 @@
 // complete surface of the content script: there is deliberately no
 // publish/submit command, and nothing here clicks a button.
 
-import { fillShotDetails, fillTags, locateTagsField } from '../dribbble/form';
+import { detailsStillPresent, fillShotDetails, fillTags, locateTagsField } from '../dribbble/form';
 import { openTagStep } from '../dribbble/steps';
 import { findFirst, sleep, waitFor } from '../dribbble/dom-utils';
 import { PUBLISH_BUTTON } from '../dribbble/selectors';
@@ -22,6 +22,8 @@ import { StatusBanner } from './status-banner';
 const TAG_WAIT_MS = 20 * 60 * 1000;
 /** Lets the "Final touches" dialog finish animating before typing into it. */
 const DIALOG_SETTLE_MS = 300;
+/** Pause after filling before checking that Dribbble kept the text. */
+const SAVE_SETTLE_MS = 800;
 /** How long the final step may be open without a recognisable tag field before giving up. */
 const MISSING_TAG_FIELD_MS = 3000;
 
@@ -92,7 +94,18 @@ export function createContentController({
       let tagsFilled = result.tags?.filled ?? 0;
       let tagsPending = result.tags === null && content.tags.length > 0;
 
-      if (tagsPending) {
+      // Give Dribbble's editor time to save, then make sure the text is still
+      // there. If it was dropped, clicking Continue would lose it, so stop and
+      // leave Continue to the designer.
+      await sleep(SAVE_SETTLE_MS);
+      const kept = detailsStillPresent(content, result.fields, doc);
+      if (!kept) {
+        result.warnings.push(
+          "Dribbble didn't keep the title or description automatically. Copy them from the assistant panel, paste them into Dribbble, then click Continue.",
+        );
+      }
+
+      if (tagsPending && kept) {
         // Dribbble asks for tags in its "Final touches" dialog. "Continue" only
         // opens that dialog; its Publish button is never touched.
         banner.show({

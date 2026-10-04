@@ -1,5 +1,7 @@
 import type { ImageMeta, ShotContent, UploadResult } from '../../types';
+import { descriptionToPlainText } from '../../dribbble/format';
 import { Button } from '../components/Button';
+import { CopyButton } from '../components/CopyButton';
 import { Icon } from '../components/Icon';
 import { Notice } from '../components/Notice';
 
@@ -44,6 +46,13 @@ export function ReadyPage({ image, content, result, onOpenDribbble, onBackToRevi
           {warning}
         </Notice>
       ))}
+
+      {content && (
+        <div className="row">
+          <CopyButton label="Copy title" text={content.title} />
+          <CopyButton label="Copy description" text={descriptionToPlainText(content.description)} />
+        </div>
+      )}
 
       <div className="page__footer">
         <span className="manual-badge">

@@ -87,6 +87,22 @@ describe('publishing is never automated', () => {
     content.dispose();
   });
 
+  it('does not click Continue when Dribbble drops the description', async () => {
+    // An editor whose saved state never received the text: it re-renders
+    // empty as soon as focus leaves it.
+    const editor = document.querySelector('.ProseMirror') as HTMLElement;
+    editor.addEventListener('blur', () => setTimeout(() => (editor.innerHTML = '<p><br></p>'), 0));
+    const content = controller();
+    await content.handle({ type: 'UPLOAD_IMAGE', payload: await imagePayload() });
+    const filled = await content.handle({ type: 'FILL_SHOT_DETAILS', payload: CONTENT });
+
+    expect(filled).toMatchObject({ ok: true, tagsPending: true });
+    expect((filled as { warnings: string[] }).warnings.join(' ')).toMatch(/didn't keep the title or description/);
+    expect(spies[0]).not.toHaveBeenCalled(); // Continue was not clicked
+    expect(page.publishClicks).toBe(0);
+    content.dispose();
+  });
+
   it('falls back to waiting for the designer when there is no Continue button', async () => {
     document.getElementById('continue')!.remove();
     const content = controller();

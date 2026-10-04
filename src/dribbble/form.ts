@@ -15,6 +15,7 @@ import type { ShotContent } from '../types';
 import { AppError } from '../utils/errors';
 import {
   containsText,
+  countTextBlocks,
   findFirst,
   isEditable,
   isTextControl,
@@ -25,7 +26,7 @@ import {
   writeRichText,
   type Match,
 } from './dom-utils';
-import { blockToHtml, blockToText, descriptionToPlainText, parseDescription } from './format';
+import { blockToHtml, descriptionToPlainText, parseDescription } from './format';
 import { DESCRIPTION_FIELD, TAGS_FIELD, TITLE_FIELD } from './selectors';
 import { isPublishControl } from './steps';
 
@@ -65,34 +66,52 @@ export function fillTitle(el: Element, title: string): void {
   if (readValue(el).trim() !== title.trim() && !containsText(el, title)) {
     throw new AppError('DOM_CHANGED', 'Title did not stick after filling');
   }
+  commit(el);
 }
 
-/** Returns a warning when the write could not be verified through the editor's own input pipeline. */
+/** Leaving a field is when many editors save their content; do it like a user would. */
+function commit(el: Element): void {
+  (el as HTMLElement).blur();
+}
+
+/** Returns a warning when the text landed but its paragraph layout did not. */
 export function fillDescription(el: Element, description: string): string | null {
-  const blocks = parseDescription(description);
+  const plain = descriptionToPlainText(description);
   if (isTextControl(el)) {
     // Plain textarea: keep the structure as text, one block per paragraph.
-    const plain = descriptionToPlainText(description);
     setNativeValue(el, plain);
-    if (!containsText(el, plain)) throw new AppError('DOM_CHANGED', 'Description did not stick after filling');
-    return null;
   } else if (isEditable(el)) {
-    const plain = descriptionToPlainText(description);
-    const result = writeRichText(
-      el,
-      plain,
-      blocks.map((block) => ({ html: blockToHtml(block).replace(/^<p>|<\/p>$/g, ''), text: blockToText(block) })),
-    );
-    if (!containsText(el, plain)) throw new AppError('DOM_CHANGED', 'Description did not stick after filling');
-    if (result.method === 'dom') {
-      return 'The description was written directly into the editor. Please check it is kept when you continue.';
-    }
-    if (!result.structured) {
+    const blocks = parseDescription(description);
+    const method = writeRichText(el, plain, blocks.map(blockToHtml).join(''));
+    if (!method) throw new AppError('DOM_CHANGED', "Dribbble's description editor did not accept the text");
+    commit(el);
+    if (blocks.length > 1 && countTextBlocks(el) < 2) {
       return "Dribbble's editor kept the description text but not its paragraph formatting. Please check the layout before publishing.";
     }
     return null;
+  } else {
+    throw new AppError('DOM_CHANGED', 'Description field is not editable');
   }
-  throw new AppError('DOM_CHANGED', 'Description field is not editable');
+  if (!containsText(el, plain)) throw new AppError('DOM_CHANGED', 'Description did not stick after filling');
+  commit(el);
+  return null;
+}
+
+/**
+ * Re-reads the fields after a pause. If Dribbble re-rendered a field from its
+ * own state and dropped our text, the text was never really saved, and
+ * clicking "Continue" would lose it.
+ */
+export function detailsStillPresent(content: ShotContent, fields: ShotFields, root: Document = document): boolean {
+  const title = fields.title.element.isConnected ? fields.title.element : findFirst(TITLE_FIELD, root)?.element;
+  const titleKept = Boolean(title && containsText(title, content.title));
+  // The editor's placeholder (used to find it) disappears once it has content,
+  // so a re-rendered editor is checked through the page text instead.
+  const plain = descriptionToPlainText(content.description);
+  const descriptionKept = fields.description.element.isConnected
+    ? containsText(fields.description.element, plain)
+    : containsText(root.body, plain);
+  return titleKept && descriptionKept;
 }
 
 export interface TagFillResult {
@@ -158,6 +177,7 @@ export async function fillTags(el: Element, tags: readonly string[], signal?: Ab
 }
 
 export interface DetailsFillResult {
+  fields: ShotFields;
   title: boolean;
   description: boolean;
   tags: TagFillResult | null;
@@ -182,5 +202,5 @@ export async function fillShotDetails(
     tags = await fillTags(fields.tags.element, content.tags, signal);
     warnings.push(...tags.warnings);
   }
-  return { title: true, description: true, tags, warnings };
+  return { fields, title: true, description: true, tags, warnings };
 }
