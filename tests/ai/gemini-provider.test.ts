@@ -53,7 +53,7 @@ describe('GeminiProvider', () => {
           analysis: ANALYSIS,
           title: 'Personal Finance Tracker App',
           description: 'A calm finance tracking concept.',
-          tags: ['fintech', 'mobile-design', 'ui', 'ux'],
+          tags: ['fintech', 'mobile design', 'ui', 'ux'],
         }),
       ),
     );
@@ -69,13 +69,13 @@ describe('GeminiProvider', () => {
     const fetchMock = mockFetch(
       reply('{"title":"Personal Finance Tracker App"}'),
       reply('{"description":"A calm finance tracking concept."}'),
-      reply('{"tags":["fintech","mobile-design","ui","ux"]}'),
+      reply('{"tags":["fintech","mobile design","ui","ux"]}'),
     );
     const content = await new GeminiProvider(CONFIG, fetchMock).generateShotContent(ANALYSIS, OPTIONS);
     expect(content).toEqual({
       title: 'Personal Finance Tracker App',
       description: 'A calm finance tracking concept.',
-      tags: ['fintech', 'mobile-design', 'ui', 'ux'],
+      tags: ['fintech', 'mobile design', 'ui', 'ux'],
     });
   });
 

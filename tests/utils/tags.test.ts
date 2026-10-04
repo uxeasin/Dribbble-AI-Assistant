@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { normalizeTag, normalizeTags, parseTagInput } from '../../src/utils/tags';
 
 describe('tags', () => {
-  it('normalises to Dribbble style', () => {
-    expect(normalizeTag('#Web Design')).toBe('web-design');
-    expect(normalizeTag('  UI/UX ')).toBe('uiux');
+  it('normalises to Dribbble style, with spaces instead of hyphens', () => {
+    expect(normalizeTag('#Web Design')).toBe('web design');
+    expect(normalizeTag('web-design')).toBe('web design');
+    expect(normalizeTag('landing_page')).toBe('landing page');
+    expect(normalizeTag('e-commerce')).toBe('e-commerce');
+    expect(normalizeTag('  UI/UX ')).toBe('ui/ux');
     expect(normalizeTag('---')).toBe('');
   });
 

@@ -31,6 +31,8 @@ export interface ControllerDeps {
   emit: (event: ContentEvent) => void;
   version: string;
   banner?: Pick<StatusBanner, 'show' | 'hide'>;
+  /** How long to wait for Dribbble to enable "Continue" before leaving it to the designer. */
+  continueTimeoutMs?: number;
 }
 
 export function createContentController({
@@ -39,6 +41,7 @@ export function createContentController({
   emit,
   version,
   banner = new StatusBanner(doc),
+  continueTimeoutMs = 60_000,
 }: ControllerDeps) {
   let busy = false;
   let tagWatch: AbortController | null = null;
@@ -92,8 +95,12 @@ export function createContentController({
       if (tagsPending) {
         // Dribbble asks for tags in its "Final touches" dialog. "Continue" only
         // opens that dialog; its Publish button is never touched.
-        banner.show({ tone: 'working', title: 'Adding tags…', body: 'Opening Dribbble\'s final step to add your tags.' });
-        const field = await openTagStep(doc);
+        banner.show({
+          tone: 'working',
+          title: 'Adding tags…',
+          body: 'Waiting for Dribbble to finish processing, then clicking "Continue" to add your tags.',
+        });
+        const field = await openTagStep(doc, { enableTimeoutMs: continueTimeoutMs });
         if (field) {
           await sleep(DIALOG_SETTLE_MS);
           const tags = await fillTags(field.element, content.tags);

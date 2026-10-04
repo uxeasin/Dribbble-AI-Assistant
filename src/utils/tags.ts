@@ -2,17 +2,25 @@
 export const DRIBBBLE_MAX_TAGS = 20;
 const MAX_TAG_LENGTH = 32;
 
-/** Normalises a single tag to Dribbble's lowercase, hyphenated style. Returns '' if unusable. */
+/**
+ * Normalises a single tag to Dribbble's style: lowercase words separated by
+ * spaces ("web design", not "web-design"). Hyphens joining two words become
+ * spaces, while short prefixes such as "e-commerce" or "3-d" keep theirs.
+ * Returns '' if unusable.
+ */
 export function normalizeTag(raw: string): string {
   return raw
     .normalize('NFKC')
     .toLowerCase()
     .replace(/^#+/, '')
-    .replace(/[_\s]+/g, '-')
-    .replace(/[^\p{L}\p{N}\-+.&]/gu, '')
+    .replace(/_+/g, ' ')
+    .replace(/(\p{L}{2,})-(?=\p{L}{2,})/gu, '$1 ')
+    .replace(/[^\p{L}\p{N}\s\-+.&/]/gu, '')
+    .replace(/\s+/g, ' ')
     .replace(/-{2,}/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, MAX_TAG_LENGTH);
+    .replace(/^[\s-]+|[\s-]+$/g, '')
+    .slice(0, MAX_TAG_LENGTH)
+    .trim();
 }
 
 /** Normalises, de-duplicates and caps a tag list while preserving order. */

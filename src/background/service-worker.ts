@@ -11,6 +11,12 @@ const workflow = new Workflow(store);
 // Every listener awaits this so no command runs against unloaded state after a restart.
 const ready = workflow.init().catch((error: unknown) => console.error('Workflow init failed', error));
 
+// Clicking the toolbar icon opens the assistant in the browser's side panel
+// (on the right), where it stays open while the designer works on Dribbble.
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((error: unknown) => console.error('Could not enable the side panel', error));
+
 const ports = new Set<chrome.runtime.Port>();
 
 store.subscribe((state) => {

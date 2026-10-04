@@ -7,7 +7,7 @@ import { AppError } from '../utils/errors';
 import { normalizeTags } from '../utils/tags';
 
 export const TITLE_MAX_LENGTH = 80;
-export const DESCRIPTION_MAX_LENGTH = 1500;
+export const DESCRIPTION_MAX_LENGTH = 3000;
 export const MIN_TAGS = 3;
 
 type JsonObject = Record<string, unknown>;

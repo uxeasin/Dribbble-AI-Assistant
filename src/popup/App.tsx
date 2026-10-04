@@ -16,8 +16,6 @@ import { ReviewPage } from './pages/ReviewPage';
 import { SelectedPage } from './pages/SelectedPage';
 import { SettingsPage } from './pages/SettingsPage';
 
-const isTabView = new URLSearchParams(location.search).get('view') === 'tab';
-
 const IMAGE_ERRORS = new Set(['INVALID_IMAGE', 'IMAGE_TOO_LARGE', 'IMAGE_MISSING']);
 const UPLOAD_ERRORS = new Set(['DRIBBBLE_UNAVAILABLE', 'UPLOAD_FAILED', 'NOT_LOGGED_IN', 'SECURITY_CHALLENGE', 'INTERRUPTED']);
 
@@ -65,10 +63,6 @@ export function App() {
   };
 
   const openSettings = () => setView('settings');
-  const expand = () => {
-    void chrome.tabs.create({ url: chrome.runtime.getURL('index.html?view=tab') });
-    window.close();
-  };
 
   if (view === 'settings') {
     return (
@@ -106,7 +100,7 @@ export function App() {
             steps={state.steps}
             image={state.image}
             onCancel={() => send({ type: 'CANCEL' })}
-            footnote="You can close this popup — progress is kept."
+            footnote="You can close this panel — progress is kept."
           />
         );
       case 'review':
@@ -154,7 +148,6 @@ export function App() {
     <div className="app">
       <Header
         onOpenSettings={openSettings}
-        onExpand={isTabView ? undefined : expand}
       />
       {error && (
         <div style={{ padding: 'var(--space-4) var(--space-4) 0' }}>

@@ -25,15 +25,27 @@ export function findContinueButton(root: Document = document): HTMLElement | nul
   return (match?.element as HTMLElement | undefined) ?? null;
 }
 
+export interface OpenTagStepOptions {
+  /** How long to wait for Dribbble to enable Continue (it stays disabled while the image processes). */
+  enableTimeoutMs?: number;
+  /** How long to wait for the tag field after clicking. */
+  dialogTimeoutMs?: number;
+  signal?: AbortSignal;
+}
+
 /**
- * Clicks "Continue" and waits for the tag field. Returns null (and does
- * nothing) if there is no unambiguous Continue button.
+ * Waits until "Continue" is clickable, clicks it, and waits for the tag field.
+ * Returns null (and clicks nothing) if no unambiguous Continue button appears.
  */
-export async function openTagStep(root: Document = document, timeoutMs = 10_000, signal?: AbortSignal): Promise<Match | null> {
-  const button = findContinueButton(root);
+export async function openTagStep(
+  root: Document = document,
+  { enableTimeoutMs = 60_000, dialogTimeoutMs = 10_000, signal }: OpenTagStepOptions = {},
+): Promise<Match | null> {
+  // isUsable() rejects disabled / aria-disabled buttons, so this waits for Dribbble to enable it.
+  const button = await waitFor(() => findContinueButton(root), { timeoutMs: enableTimeoutMs, signal, root });
   if (!button) return null;
   if (isPublishControl(button, root)) throw new AppError('DOM_CHANGED', 'Continue button looks like a publish control');
 
   button.click();
-  return waitFor(() => findFirst(TAGS_FIELD, root), { timeoutMs, signal, root });
+  return waitFor(() => findFirst(TAGS_FIELD, root), { timeoutMs: dialogTimeoutMs, signal, root });
 }

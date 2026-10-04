@@ -13,7 +13,7 @@ import { AppError } from '../../src/utils/errors';
 const VALID = {
   title: 'Modern Finance Dashboard',
   description: 'A clean finance dashboard concept focused on clarity.',
-  tags: ['dashboard', 'fintech', 'ui', 'ux', 'web-design', 'product-design'],
+  tags: ['dashboard', 'fintech', 'ui', 'ux', 'web design', 'product design'],
 };
 
 function expectAiFailure(fn: () => unknown) {
@@ -85,7 +85,7 @@ describe('validateShotContent', () => {
 
   it('normalises, de-duplicates and filters tags', () => {
     const result = validateShotContent({ ...VALID, tags: ['#UI', 'ui', 'Web Design', 'web_design', 42, '', 'SaaS'] }, 12);
-    expect(result.tags).toEqual(['ui', 'web-design', 'saas']);
+    expect(result.tags).toEqual(['ui', 'web design', 'saas']);
   });
 
   it('accepts comma-separated tag strings', () => {

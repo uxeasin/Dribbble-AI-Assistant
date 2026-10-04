@@ -6,7 +6,7 @@ import type { DesignAnalysis, ShotContent } from '../../src/types';
 vi.mock('../../src/image/processing', () => ({ prepareForAI: async (blob: Blob) => blob }));
 
 const ANALYSIS: DesignAnalysis = { designType: 'app', subject: 'Banking', visualStyle: 'flat', colors: [], keywords: [] };
-const CONTENT: ShotContent = { title: 'Banking App', description: 'A banking app.', tags: ['ui', 'fintech', 'mobile-design'] };
+const CONTENT: ShotContent = { title: 'Banking App', description: 'A banking app.', tags: ['ui', 'fintech', 'mobile design'] };
 
 function fakeProvider(): AIProvider {
   return {
@@ -30,7 +30,7 @@ describe('generateShot', () => {
     const result = await generateShot(
       provider,
       new Blob(['x']),
-      { tone: 'minimal', tagCount: 5, defaultTags: ['studio-x'] },
+      { tone: 'minimal', tagCount: 5, defaultTags: ['studio x'] },
       {
         onStepStart: (s) => events.push(`start:${s}`),
         onStepDone: (s) => events.push(`done:${s}`),
@@ -40,7 +40,7 @@ describe('generateShot', () => {
     expect(provider.prepareShot).toHaveBeenCalledTimes(1);
     expect(provider.analyzeDesign).not.toHaveBeenCalled();
     expect(provider.generateShotContent).not.toHaveBeenCalled();
-    expect(result.content.tags).toEqual(['studio-x', 'ui', 'fintech', 'mobile-design']);
+    expect(result.content.tags).toEqual(['studio x', 'ui', 'fintech', 'mobile design']);
   });
 
   it('applies default tags when regenerating tags', async () => {

@@ -47,6 +47,7 @@ export function ReviewPage({ image, draft, regenerating, onChange, onRegenerate,
       <Field
         id="shot-description"
         label="Description"
+        meta={`${countWords(draft.description)} words`}
         onRegenerate={() => onRegenerate('description')}
         regenerating={regenerating === 'description'}
         regenerateDisabled={busy}
@@ -55,7 +56,7 @@ export function ReviewPage({ image, draft, regenerating, onChange, onRegenerate,
           id="shot-description"
           className="textarea"
           value={draft.description}
-          rows={6}
+          rows={12}
           onChange={(e) => onChange({ description: e.target.value })}
           aria-invalid={descriptionMissing || undefined}
           disabled={regenerating === 'description'}
@@ -90,4 +91,8 @@ export function ReviewPage({ image, draft, regenerating, onChange, onRegenerate,
       </div>
     </main>
   );
+}
+
+function countWords(text: string): number {
+  return text.trim() ? text.trim().split(/\s+/).length : 0;
 }

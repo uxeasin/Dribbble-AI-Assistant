@@ -11,7 +11,7 @@ import { installFileApiPolyfills, installUploadPage, UPLOAD_PAGE_URL, type MockD
 const CONTENT = {
   title: 'Modern SaaS Analytics Dashboard',
   description: 'A clean analytics dashboard concept designed for modern SaaS products.',
-  tags: ['dashboard', 'saas', 'ui', 'ux', 'web-design', 'analytics', 'product-design'],
+  tags: ['dashboard', 'saas', 'ui', 'ux', 'web design', 'analytics', 'product design'],
 };
 
 async function imagePayload() {
@@ -44,6 +44,7 @@ describe('publishing is never automated', () => {
       getUrl: () => UPLOAD_PAGE_URL,
       emit: (event) => events.push(event),
       banner: { show: () => undefined, hide: () => undefined },
+      continueTimeoutMs: 300,
     });
   }
 
@@ -68,6 +69,21 @@ describe('publishing is never automated', () => {
     expect(requestSubmitSpy).not.toHaveBeenCalled();
     expect(page.publishClicks).toBe(0);
     expect(page.submits).toBe(0);
+    content.dispose();
+  });
+
+  it('waits for Dribbble to enable Continue before clicking it', async () => {
+    const button = document.getElementById('continue') as HTMLButtonElement;
+    button.disabled = true;
+    setTimeout(() => (button.disabled = false), 150);
+    const content = controller();
+    await content.handle({ type: 'UPLOAD_IMAGE', payload: await imagePayload() });
+    const filled = await content.handle({ type: 'FILL_SHOT_DETAILS', payload: CONTENT });
+
+    expect(filled).toMatchObject({ ok: true, tagsPending: false });
+    expect(spies[0]).toHaveBeenCalledTimes(1);
+    expect(page.tags()).toEqual(CONTENT.tags);
+    expect(page.publishClicks).toBe(0);
     content.dispose();
   });
 
@@ -190,7 +206,7 @@ describe('source code safety boundary', () => {
     expect(clickers).toEqual(['dribbble/steps.ts']);
     const steps = stripComments(readFileSync(join(root, 'dribbble/steps.ts'), 'utf8'));
     expect(steps.match(/\.click\s*\(/g)).toHaveLength(1);
-    expect(steps).toMatch(/const button = findContinueButton\(root\);[\s\S]*button\.click\(\)/);
+    expect(steps).toMatch(/const button = await waitFor\(\(\) => findContinueButton\(root\)[\s\S]*button\.click\(\)/);
   });
 
   it.each([

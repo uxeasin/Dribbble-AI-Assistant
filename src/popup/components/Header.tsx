@@ -5,10 +5,9 @@ interface HeaderProps {
   title?: string;
   onBack?: () => void;
   onOpenSettings?: () => void;
-  onExpand?: () => void;
 }
 
-export function Header({ title = 'Dribbble AI Assistant', onBack, onOpenSettings, onExpand }: HeaderProps) {
+export function Header({ title = 'Dribbble AI Assistant', onBack, onOpenSettings }: HeaderProps) {
   return (
     <header className="header">
       {onBack && <IconButton icon="back" label="Back" onClick={onBack} />}
@@ -23,7 +22,6 @@ export function Header({ title = 'Dribbble AI Assistant', onBack, onOpenSettings
         </h1>
       </div>
       <div className="header__actions">
-        {onExpand && <IconButton icon="expand" label="Open in a tab" onClick={onExpand} />}
         {onOpenSettings && <IconButton icon="settings" label="Settings" onClick={onOpenSettings} />}
       </div>
     </header>

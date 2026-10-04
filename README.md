@@ -12,7 +12,7 @@ A Chrome extension (Manifest V3) that turns a design image into a Dribbble-ready
 
 ## 1. Installation
 
-Requirements: Node.js 20.19+ and Chrome (or another Chromium browser) 116+.
+Requirements: Node.js 20.19+ and Chrome or Edge (or another Chromium browser) 116+ with side panel support.
 
 ```bash
 npm install
@@ -24,7 +24,7 @@ npm install
 npm run dev
 ```
 
-This builds into `dist/` in watch mode. After you change the background worker or the content script, reload the extension from `chrome://extensions`. After a popup change, just reopen the popup.
+This builds into `dist/` in watch mode. After you change the background worker or the content script, reload the extension from `chrome://extensions`. After a UI change, just close and reopen the side panel.
 
 In development builds (only), `VITE_DEV_OPENAI_API_KEY` / `VITE_DEV_GEMINI_API_KEY` from `.env.local` are used as fallback API keys, so you don't have to re-enter it after every reload. See `.env.example`.
 
@@ -42,11 +42,11 @@ npm run test       # unit tests (Vitest + jsdom)
 3. Click **Load unpacked** and select the **`dist/`** folder.
 
 > Don't load the repository folder itself (for example a ZIP downloaded from GitHub). The root `manifest.json` is only the build template, and Chrome will report *"Could not load background script"*. The loadable extension only exists in `dist/` after a build.
-4. Pin **Dribbble AI Assistant** to the toolbar.
+4. Pin **Dribbble AI Assistant** to the toolbar. Clicking it opens the assistant in the side panel on the right.
 
 ## 5. Configuring AI
 
-Open the popup, click the gear icon, choose a provider, and enter your API key.
+Click the toolbar icon to open the assistant, click the gear icon, choose a provider, and enter your API key.
 
 | Provider | Get a key | Default model |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ Nothing else in the app depends on a specific provider.
 6. Dribbble asks for tags in its final step. The extension clicks **Continue**, which only opens the *Final touches* dialog, and fills in your tags there. It never touches **Publish now** or **Save as draft**. If it can't find a Continue button, it waits for you to click it and then adds the tags.
 7. Review everything and **publish manually**.
 
-You can close the popup at any time. Progress lives in the background worker and the popup picks up where you left off. If your OS closes the popup when the file picker opens, use the ⤢ button to open the assistant in a full tab.
+The assistant opens in the browser's **side panel** on the right, so it stays visible while you work on Dribbble. You can resize it, or close it at any time: progress lives in the background worker and the panel picks up where you left off.
 
 ## 7. Privacy
 
@@ -103,13 +103,13 @@ The extension does **not**:
 - ask for your Dribbble password
 - auto-publish anything
 
-Permissions requested: `storage`, `scripting`, and host access to `dribbble.com`, `api.openai.com` and `generativelanguage.googleapis.com` (Gemini).
+Permissions requested: `storage`, `scripting`, `sidePanel`, and host access to `dribbble.com`, `api.openai.com` and `generativelanguage.googleapis.com` (Gemini).
 
 ## 8. Known Dribbble limitations
 
 - **Unverified selectors.** Dribbble has no public upload API for regular accounts, so the extension drives the normal web UI. The selectors target the uploader as it looked when this was written. They are tested against a mock of that flow, not against the live site, which this project's build environment could not reach. Expect to adjust `src/dribbble/selectors.ts` after your first real run (see §9).
 - **Tags come in a later step.** Tags live in Dribbble's *Final touches* dialog. The extension opens it by clicking Continue (an exact "Continue" button only). If that isn't possible, it waits up to 20 minutes for you to open the dialog. If the dialog opens but the tag field isn't recognised, it says so instead of guessing.
-- **Description editor.** The description is a rich-text editor. Text is inserted with a paste-style event so the editor keeps its own state. If that fails, the popup warns you to double-check the description.
+- **Description editor.** The description is a rich-text editor. Text is inserted with a paste-style event so the editor keeps its own state. If that fails, the assistant warns you to double-check the description.
 - **Login and security checks.** If you're logged out, or Dribbble shows a CAPTCHA or security check, automation stops and tells you to resolve it yourself. It never tries to bypass either.
 - **Upload limits.** Dribbble's own limits apply (10 MB per image; recommended 1600×1200 or larger).
 - **No guessing when the page changes.** If the page doesn't look like the expected editor, the extension stops with *"Dribbble's upload interface appears to have changed. Please complete the upload manually."* It never guesses.
@@ -142,13 +142,13 @@ Steps:
 ## Architecture
 
 ```text
-Popup (React) ──Port "workflow"──▶ Background service worker ──tabs.sendMessage──▶ Content script ──▶ Dribbble upload page
+Side panel (React) ──Port "workflow"──▶ Background service worker ──tabs.sendMessage──▶ Content script ──▶ Dribbble upload page
      ▲                                  │   ▲                                            │
      └────────── STATE_UPDATED ─────────┘   └───────── UPLOAD_PROGRESS / TAGS_FILLED ────┘
 ```
 
-- **`src/background/`** owns the workflow state machine (`idle → selected → preparing → review → uploading → ready`), persists it in session storage, runs the AI calls (so they survive the popup closing), and opens and drives the Dribbble tab.
-- **`src/popup/`** is a view of the background state, plus the settings screen. Edits are kept in a local draft that merges safely with AI regenerations.
+- **`src/background/`** owns the workflow state machine (`idle → selected → preparing → review → uploading → ready`), persists it in session storage, runs the AI calls (so they survive the panel closing), and opens and drives the Dribbble tab.
+- **`src/popup/`** is the side-panel UI: a view of the background state, plus the settings screen. Edits are kept in a local draft that merges safely with AI regenerations.
 - **`src/content/`** is injected only into the upload tab. Its whole surface is `PING`, `PROBE_PAGE`, `UPLOAD_IMAGE` and `FILL_SHOT_DETAILS`. **There is no publish command.**
 - **`src/ai/`** contains the provider interface, the OpenAI and Gemini implementations (sharing `json-provider.ts`), prompts, and schema validation of AI output. Malformed JSON, missing fields and oversized tag lists are handled, with one automatic retry.
 - **`src/image/`** holds local-only validation and processing.
@@ -180,7 +180,7 @@ src/
   dribbble/    selectors, navigation, upload, form, DOM helpers
   image/       validation, encoding, resizing (local only)
   messaging/   typed message contracts
-  popup/       React UI: components, pages, hooks, design tokens (styles/app.css)
+  popup/       side-panel React UI: components, pages, hooks, design tokens (styles/app.css)
   storage/     settings + API key storage
   types/       shared domain types
   utils/       errors, tag normalisation

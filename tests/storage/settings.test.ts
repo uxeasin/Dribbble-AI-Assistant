@@ -22,7 +22,7 @@ describe('sanitizeSettings', () => {
       baseUrl: 'https://proxy.example/v1',
       tone: 'creative',
       tagCount: DEFAULT_SETTINGS.tagCount,
-      defaultTags: ['my-studio', 'brand'],
+      defaultTags: ['my studio', 'brand'],
     });
   });
 
