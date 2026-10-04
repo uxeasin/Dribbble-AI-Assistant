@@ -67,10 +67,11 @@ const FIELD_RULES: Record<ShotField, (options: GenerationOptions) => string> = {
 - No quotes, no trailing punctuation, no emojis, no clickbait.`,
 
   description: () => `DESCRIPTION — long-form, optimised for search engines (SEO), answer engines (AEO) and generative AI search (GEO)
-- 200 to 350 words in 4 to 6 short paragraphs, separated by a blank line. Plain text only: no markdown, no headings syntax, no hashtags, no emojis.
-- First sentence: a direct, self-contained answer to "What is this?" that names the design type, the product and its industry using the main search phrase (e.g. "This is a mobile app UI design for an electric scooter rental service…"). Answer engines quote this sentence, so it must make sense on its own.
-- Then cover, in natural language: the problem or user need the design addresses; the key screens and UI components that are visible; the UX decisions (navigation, hierarchy, layout, interaction patterns); the visual language (colour palette, typography, imagery, style); and who the product is for.
-- One paragraph may be a short list of the visible key screens or features, one per line, each starting with "• ".
+- 200 to 350 words, well structured and easy to scan. Plain text only: no markdown symbols (#, *, **), no hashtags, no emojis.
+- Start with an intro paragraph (no title above it) whose first sentence directly answers "What is this?", naming the design type, the product and its industry with the main search phrase (e.g. "This is a mobile app UI design for an electric scooter rental service…"). Answer engines quote this sentence, so it must make sense on its own.
+- Then 3 or 4 sections. Each section is a short title (2 to 4 words, Title Case, no punctuation) on its own line, followed directly on the next line by its content. Separate sections with one blank line. Use section titles such as "The Challenge", "Key Screens", "Design Approach", "Visual Language", "Who It's For".
+- Section content is one short paragraph (2 to 4 sentences), except "Key Screens" (or "Key Features"), which is 3 to 6 lines that each start with "• " and briefly describe one visible screen or feature.
+- Together the sections cover: the problem or user need; the key screens and UI components that are visible; the UX decisions (navigation, hierarchy, layout, interaction patterns); the visual language (colour palette, typography, imagery, style); and who the product is for.
 - Weave in relevant keywords and close synonyms naturally (product type, platform, industry, style, "UI/UX design", "app design", "web design" as applicable). Never keyword-stuff or repeat a phrase unnaturally.
 - Use concrete, factual, entity-rich wording that AI search engines can cite: name the product category, platform (iOS, Android, web), industry and design patterns explicitly.
 - Do not invent features, metrics, client names or results that cannot be seen in the image. No hype or superlatives.

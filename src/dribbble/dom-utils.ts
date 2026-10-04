@@ -208,13 +208,6 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
-export function paragraphsToHtml(text: string): string {
-  return text
-    .split(/\n{2,}/)
-    .map((p) => `<p>${escapeHtml(p.trim()).replace(/\n/g, '<br>')}</p>`)
-    .join('');
-}
-
 /** Whitespace is ignored entirely: editors render paragraph breaks differently from the source text. */
 function normalizeForCompare(text: string): string {
   return text.replace(/\s+/g, '').toLowerCase();
@@ -226,34 +219,104 @@ export function containsText(el: Element, expected: string): boolean {
   return probe.length > 0 && actual.includes(probe);
 }
 
+export interface RichTextBlock {
+  /** Inner HTML of one paragraph, e.g. "<strong>Key Screens</strong>". */
+  html: string;
+  text: string;
+}
+
+export type RichTextMethod = 'paste' | 'blocks' | 'insertText' | 'dom';
+
+export interface RichTextResult {
+  method: RichTextMethod;
+  /** False when the text landed but its paragraph structure did not. */
+  structured: boolean;
+}
+
+/** Number of non-empty leaf blocks (paragraphs, list items, headings) in an editor. */
+export function countTextBlocks(el: Element): number {
+  const blocks = Array.from(el.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6, div')).filter(
+    (b) => (b.textContent ?? '').trim() && !b.querySelector('p, li, h1, h2, h3, h4, h5, h6, div'),
+  );
+  return blocks.length || ((el.textContent ?? '').trim() ? 1 : 0);
+}
+
+function execCommand(el: HTMLElement, command: string, value?: string): boolean {
+  const doc = el.ownerDocument as Document & { execCommand?: Document['execCommand'] };
+  try {
+    return typeof doc.execCommand === 'function' && doc.execCommand(command, false, value);
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Replaces the contents of a rich-text editor. Strategies, in order:
- * 1. a synthetic paste (editors read event.clipboardData, which keeps their internal state in sync),
- * 2. execCommand('insertText'), which editors observe via beforeinput/input,
- * 3. direct DOM write + input event (last resort; reported so it can be verified).
+ * Replaces the contents of a rich-text editor, keeping paragraph structure.
+ * Strategies, in order:
+ * 1. a synthetic paste with HTML (editors read event.clipboardData, which keeps their state in sync),
+ * 2. block by block: insert each paragraph, then press Enter to start the next one,
+ * 3. execCommand('insertText') with the plain text,
+ * 4. direct DOM write + input event (last resort; reported so it can be verified).
  */
-export function writeRichText(el: HTMLElement, text: string): 'paste' | 'insertText' | 'dom' {
+export function writeRichText(el: HTMLElement, text: string, blocks?: readonly RichTextBlock[]): RichTextResult {
+  const parts = blocks?.length ? blocks : [{ html: escapeHtml(text), text }];
+  const html = parts.map((b) => `<p>${b.html}</p>`).join('');
+  const wanted = Math.min(parts.length, 2);
+  const isStructured = () => countTextBlocks(el) >= wanted;
   el.focus();
   selectContents(el);
 
+  let flatPaste = false;
   if (typeof ClipboardEvent === 'function' && typeof DataTransfer === 'function') {
     const data = new DataTransfer();
     data.setData('text/plain', text);
-    data.setData('text/html', paragraphsToHtml(text));
+    data.setData('text/html', html);
     const paste = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
     el.dispatchEvent(paste);
-    if (paste.defaultPrevented && containsText(el, text)) return 'paste';
+    if (paste.defaultPrevented && containsText(el, text)) {
+      if (isStructured()) return { method: 'paste', structured: true };
+      flatPaste = true;
+    }
+  }
+
+  if (parts.length > 1 && writeBlocks(el, parts) && containsText(el, text) && isStructured()) {
+    return { method: 'blocks', structured: true };
+  }
+
+  if (flatPaste) {
+    // Re-paste so the editor isn't left with a half-written block attempt.
+    selectContents(el);
+    const data = new DataTransfer();
+    data.setData('text/plain', text);
+    data.setData('text/html', html);
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    if (containsText(el, text)) return { method: 'paste', structured: isStructured() };
   }
 
   selectContents(el);
-  const doc = el.ownerDocument as Document & { execCommand?: Document['execCommand'] };
-  if (typeof doc.execCommand === 'function' && doc.execCommand('insertText', false, text) && containsText(el, text)) {
-    return 'insertText';
+  if (execCommand(el, 'insertText', text) && containsText(el, text)) {
+    return { method: 'insertText', structured: isStructured() };
   }
 
-  el.innerHTML = paragraphsToHtml(text);
+  el.innerHTML = html;
   el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste', data: text }));
-  return 'dom';
+  return { method: 'dom', structured: isStructured() };
+}
+
+/** Types paragraphs one at a time, pressing Enter between them like a user would. */
+function writeBlocks(el: HTMLElement, blocks: readonly RichTextBlock[]): boolean {
+  selectContents(el);
+  if (!execCommand(el, 'delete') && (el.textContent ?? '').trim()) return false;
+  for (const [index, block] of blocks.entries()) {
+    if (index > 0) {
+      const before = countTextBlocks(el);
+      pressKey(el, 'Enter');
+      if (countTextBlocks(el) <= before && !execCommand(el, 'insertParagraph')) return false;
+    }
+    const inserted = block.html.includes('<') ? execCommand(el, 'insertHTML', block.html) : execCommand(el, 'insertText', block.text);
+    if (!inserted) return false;
+  }
+  return true;
 }
 
 export function setInputFiles(input: HTMLInputElement, files: File[]): void {

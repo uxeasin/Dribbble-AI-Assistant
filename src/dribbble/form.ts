@@ -25,6 +25,7 @@ import {
   writeRichText,
   type Match,
 } from './dom-utils';
+import { blockToHtml, blockToText, descriptionToPlainText, parseDescription } from './format';
 import { DESCRIPTION_FIELD, TAGS_FIELD, TITLE_FIELD } from './selectors';
 import { isPublishControl } from './steps';
 
@@ -68,18 +69,30 @@ export function fillTitle(el: Element, title: string): void {
 
 /** Returns a warning when the write could not be verified through the editor's own input pipeline. */
 export function fillDescription(el: Element, description: string): string | null {
+  const blocks = parseDescription(description);
   if (isTextControl(el)) {
-    setNativeValue(el, description);
+    // Plain textarea: keep the structure as text, one block per paragraph.
+    const plain = descriptionToPlainText(description);
+    setNativeValue(el, plain);
+    if (!containsText(el, plain)) throw new AppError('DOM_CHANGED', 'Description did not stick after filling');
+    return null;
   } else if (isEditable(el)) {
-    const method = writeRichText(el, description);
-    if (method === 'dom') {
+    const plain = descriptionToPlainText(description);
+    const result = writeRichText(
+      el,
+      plain,
+      blocks.map((block) => ({ html: blockToHtml(block).replace(/^<p>|<\/p>$/g, ''), text: blockToText(block) })),
+    );
+    if (!containsText(el, plain)) throw new AppError('DOM_CHANGED', 'Description did not stick after filling');
+    if (result.method === 'dom') {
       return 'The description was written directly into the editor. Please check it is kept when you continue.';
     }
-  } else {
-    throw new AppError('DOM_CHANGED', 'Description field is not editable');
+    if (!result.structured) {
+      return "Dribbble's editor kept the description text but not its paragraph formatting. Please check the layout before publishing.";
+    }
+    return null;
   }
-  if (!containsText(el, description)) throw new AppError('DOM_CHANGED', 'Description did not stick after filling');
-  return null;
+  throw new AppError('DOM_CHANGED', 'Description field is not editable');
 }
 
 export interface TagFillResult {

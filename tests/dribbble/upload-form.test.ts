@@ -72,6 +72,39 @@ describe('form filling', () => {
     expect(description.element.textContent).toContain('key metrics');
   });
 
+  it('formats a structured description with bold section titles and bullets', () => {
+    const { description } = locateShotFields();
+    const text = 'This is a dashboard UI design for a SaaS analytics product.\n\nKey Screens\n• Overview with KPI cards\n• Campaign table\n\nVisual Language\nA calm indigo palette keeps dense data readable.';
+    expect(fillDescription(description.element, text)).toBeNull();
+    const paragraphs = Array.from(description.element.querySelectorAll('p'));
+    expect(paragraphs.map((p) => p.textContent)).toEqual([
+      'This is a dashboard UI design for a SaaS analytics product.',
+      'Key Screens',
+      '• Overview with KPI cards',
+      '• Campaign table',
+      'Visual Language',
+      'A calm indigo palette keeps dense data readable.',
+    ]);
+    expect(description.element.querySelectorAll('strong')).toHaveLength(2);
+  });
+
+  it('warns when the editor keeps the text but flattens the paragraphs', () => {
+    const { description } = locateShotFields();
+    // An editor that only understands plain text and ignores line breaks.
+    description.element.addEventListener(
+      'paste',
+      (event) => {
+        event.stopImmediatePropagation();
+        event.preventDefault();
+        description.element.innerHTML = `<p>${(event as ClipboardEvent).clipboardData!.getData('text/plain').replace(/\s+/g, ' ')}</p>`;
+      },
+      { capture: true },
+    );
+    const warning = fillDescription(description.element, 'Intro paragraph here.\n\nKey Screens\n• One screen');
+    expect(warning).toMatch(/paragraph formatting/);
+    expect(description.element.textContent).toContain('Intro paragraph here.');
+  });
+
   it('enters tags one by one into a tokenising input', async () => {
     page.openFinalTouches();
     const tagsInput = document.getElementById('tags-input')!;

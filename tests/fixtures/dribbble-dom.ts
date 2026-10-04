@@ -58,16 +58,21 @@ export function installUploadPage(doc: Document = document, options: { tagsInlin
     (doc.getElementById('preview') as HTMLImageElement).src = 'blob:https://dribbble.com/1234';
   });
 
-  // ProseMirror-like paste handling: reads clipboardData and replaces content.
+  // ProseMirror-like paste handling: prefers the HTML flavour (keeping <p> and
+  // <strong>), falls back to plain text, and replaces the content.
   const editor = doc.querySelector('.ProseMirror') as HTMLElement;
   editor.addEventListener('paste', (event) => {
-    const text = (event as ClipboardEvent).clipboardData?.getData('text/plain');
-    if (!text) return;
+    const data = (event as ClipboardEvent).clipboardData;
+    const html = data?.getData('text/html');
+    const text = data?.getData('text/plain');
+    if (!html && !text) return;
     event.preventDefault();
-    editor.innerHTML = text
-      .split(/\n{2,}/)
-      .map((p) => `<p>${p}</p>`)
-      .join('');
+    const template = doc.createElement('template');
+    template.innerHTML = html || text!.split(/\n{2,}/).map((p) => `<p>${p}</p>`).join('');
+    const allowed = Array.from(template.content.querySelectorAll('p')).map(
+      (p) => `<p>${p.innerHTML.replace(/<(?!\/?strong>)[^>]+>/g, '')}</p>`,
+    );
+    editor.innerHTML = allowed.join('');
   });
 
   // Tokenising tag input like Dribbble's: a comma (or Enter) turns the text into a chip.
